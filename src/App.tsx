@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import {
   Activity,
   BarChart3,
@@ -32,6 +32,29 @@ const modules: Module[] = [
 ]
 
 function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('sdwan_access_token'))
+  const [userName, setUserName] = useState('')
+
+  useEffect(() => {
+    if (!token) return
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => {
+        if (!response.ok) throw new Error('Session expired')
+        return response.json() as Promise<{ email: string }>
+      })
+      .then((user) => setUserName(user.email))
+      .catch(() => {
+        localStorage.removeItem('sdwan_access_token')
+        setToken(null)
+      })
+  }, [token])
+
+  if (!token) return <Login onLogin={(accessToken, email) => { localStorage.setItem('sdwan_access_token', accessToken); setUserName(email); setToken(accessToken) }} />
+
+  return <AuthenticatedApp userName={userName} onLogout={() => { localStorage.removeItem('sdwan_access_token'); setToken(null) }} />
+}
+
+function AuthenticatedApp({ userName, onLogout }: { userName: string; onLogout: () => void }) {
   const [activeModule, setActiveModule] = useState('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -68,7 +91,7 @@ function App() {
       <main className="main-area">
         <header className="topbar">
           <div><p className="eyebrow">Department workspace</p><h1>{active.label}</h1></div>
-          <div className="topbar-meta"><span className="status-dot" /> <span>Local pilot</span><div className="avatar">MP</div></div>
+          <div className="topbar-meta"><span className="status-dot" /> <span>{userName || 'Signed in'}</span><button className="avatar" onClick={onLogout} title="Sign out">MP</button></div>
         </header>
         <div className="content">
           <section className="welcome-row"><div><p className="eyebrow">SD-WAN project delivery</p><h2>{active.label}</h2><p className="muted">{active.description}</p></div><button className="primary-button"><BarChart3 size={17} /> View pilot overview</button></section>
@@ -77,6 +100,31 @@ function App() {
       </main>
     </div>
   )
+}
+
+function Login({ onLogin }: { onLogin: (token: string, email: string) => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+      if (!response.ok) throw new Error('Email or password is incorrect')
+      const result = await response.json() as { access_token: string; user: { email: string } }
+      onLogin(result.access_token, result.user.email)
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'Unable to sign in')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return <main className="login-page"><section className="login-panel"><div className="brand-mark"><Activity size={19} /></div><p className="eyebrow">Internal department workspace</p><h1>SD-WAN Delivery Hub</h1><p className="muted">Sign in to manage project delivery information.</p><form onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="username" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="current-password" /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button login-button" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button></form></section></main>
 }
 
 function Dashboard() {

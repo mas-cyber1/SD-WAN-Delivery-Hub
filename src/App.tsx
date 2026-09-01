@@ -198,6 +198,12 @@ function Login({ onLogin }: { onLogin: (token: string, email: string) => void })
 }
 
 function Dashboard({ clients, projects, sites }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[] }) {
+  const clientPortfolio = clients.map((client) => ({
+    client,
+    projectsForClient: projects.filter((project) => project.client_id === client.id),
+    siteCount: sites.filter((site) => projects.some((project) => project.id === site.project_id && project.client_id === client.id)).length,
+  }))
+
   return <>
     <section className="metric-grid">
       <Metric label="Active clients" value={String(clients.length)} detail={clients.length === 1 ? 'Client tracked' : 'Clients tracked'} />
@@ -206,11 +212,11 @@ function Dashboard({ clients, projects, sites }: { clients: ClientRecord[]; proj
       <Metric label="Overall health" value={projects.length > 0 ? 'Live' : 'Ready'} detail={projects.length > 0 ? 'The portfolio is active' : 'Pilot workspace'} accent />
     </section>
     <section className="dashboard-grid">
-      <div className="panel panel-large"><div className="panel-heading"><div><h3>Project portfolio</h3><p className="muted">Live delivery overview for the current tenant.</p></div><span className="panel-label">Phase 3</span></div>
-        {projects.length === 0 ? <div className="empty-state"><FolderKanban size={34} /><strong>No projects yet</strong><span>Create your first project in the Projects workspace.</span></div> : <div className="list-stack">{projects.slice(0, 4).map((project) => <div key={project.id} className="list-item"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className={`status-badge ${project.status}`}>{project.status}</span></div>)}</div>}
+      <div className="panel panel-large"><div className="panel-heading"><div><h3>Portfolio by client</h3><p className="muted">Projects grouped under each client account.</p></div><span className="panel-label">Hierarchy</span></div>
+        {clientPortfolio.length === 0 ? <div className="empty-state"><FolderKanban size={34} /><strong>No client hierarchy yet</strong><span>Create a client and assign projects to it.</span></div> : <div className="hierarchy-stack">{clientPortfolio.map(({ client, projectsForClient, siteCount }) => <div key={client.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">{siteCount} sites</span></div>{projectsForClient.length === 0 ? <p className="muted">No projects linked to this client yet.</p> : <div className="nested-list">{projectsForClient.map((project) => <div key={project.id} className="nested-item"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className={`status-badge ${project.status}`}>{project.status}</span></div>)}</div>}</div>)}</div>}
       </div>
       <div className="panel"><div className="panel-heading"><div><h3>Client coverage</h3><p className="muted">Key customers and accounts</p></div></div>
-        {clients.length === 0 ? <div className="empty-state compact"><Users size={29} /><span>No clients entered yet</span></div> : <div className="list-stack compact">{clients.slice(0, 5).map((client) => <div key={client.id} className="list-item"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">{client.status}</span></div>)}</div>}
+        {clients.length === 0 ? <div className="empty-state compact"><Users size={29} /><span>No clients entered yet</span></div> : <div className="list-stack compact">{clients.slice(0, 5).map((client) => <div key={client.id} className="list-item"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">{projects.filter((project) => project.client_id === client.id).length} projects</span></div>)}</div>}
       </div>
     </section>
   </>
@@ -288,8 +294,8 @@ function ProjectWorkspace({ token, clients, projects, onProjectsChanged }: { tok
     }
   }
 
-  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Project list</h3><p className="muted">Delivery portfolio and health status</p></div><span className="panel-label">{projects.length} total</span></div>
-    {projects.length === 0 ? <div className="empty-state compact"><FolderKanban size={29} /><span>No projects available</span></div> : <div className="data-table">{projects.map((project) => <div key={project.id} className="table-row"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><div className="project-meta"><span className={`status-badge ${project.status}`}>{project.status}</span><span className="muted-tag">{project.health}</span></div></div>)}</div>}
+  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Projects by client</h3><p className="muted">Delivery portfolio grouped under the correct client.</p></div><span className="panel-label">{projects.length} total</span></div>
+    {clients.length === 0 ? <div className="empty-state compact"><Users size={29} /><span>No clients available</span></div> : <div className="hierarchy-stack">{clients.map((client) => { const clientProjects = projects.filter((project) => project.client_id === client.id); return <div key={client.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">{clientProjects.length} projects</span></div>{clientProjects.length === 0 ? <p className="muted">No projects linked to this client yet.</p> : <div className="nested-list">{clientProjects.map((project) => <div key={project.id} className="nested-item"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className={`status-badge ${project.status}`}>{project.status}</span></div>)}</div>}</div>})}</div>}
   </section>
     <section className="panel"><div className="panel-heading"><div><h3>Add project</h3><p className="muted">Track a new SD-WAN delivery engagement</p></div><span className="panel-label"><Plus size={14} /></span></div>
       <form className="form-grid" onSubmit={submit}><label>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} required>
@@ -334,8 +340,13 @@ function SiteWorkspace({ token, projects, sites, onSitesChanged }: { token: stri
     }
   }
 
-  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Site list</h3><p className="muted">Current sites and status across active projects</p></div><span className="panel-label">{sites.length} total</span></div>
-    {sites.length === 0 ? <div className="empty-state compact"><Network size={29} /><span>No sites available</span></div> : <div className="data-table">{sites.map((site) => <div key={site.id} className="table-row"><div><strong>{site.name}</strong><span>{site.site_code}</span></div><div className="project-meta"><span className={`status-badge ${site.status}`}>{site.status}</span><span className="muted-tag">{site.priority}</span></div></div>)}</div>}
+  const projectSites = projects.map((project) => ({
+    project,
+    sitesForProject: sites.filter((site) => site.project_id === project.id),
+  }))
+
+  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Sites by project</h3><p className="muted">Every site is linked to a specific project.</p></div><span className="panel-label">{sites.length} total</span></div>
+    {projects.length === 0 ? <div className="empty-state compact"><FolderKanban size={29} /><span>No projects available to link sites</span></div> : <div className="hierarchy-stack">{projectSites.map(({ project, sitesForProject }) => <div key={project.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className="muted-tag">{sitesForProject.length} sites</span></div>{sitesForProject.length === 0 ? <p className="muted">No sites linked to this project yet.</p> : <div className="nested-list">{sitesForProject.map((site) => <div key={site.id} className="nested-item"><div><strong>{site.name}</strong><span>{site.site_code}</span></div><span className={`status-badge ${site.status}`}>{site.status}</span></div>)}</div>}</div>)}</div>}
   </section>
     <section className="panel"><div className="panel-heading"><div><h3>Add site</h3><p className="muted">Track a location and delivery scope</p></div><span className="panel-label"><Plus size={14} /></span></div>
       <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required>

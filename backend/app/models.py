@@ -20,6 +20,8 @@ class Tenant(Base):
     milestones: Mapped[list["Milestone"]] = relationship(back_populates="tenant")
     actions: Mapped[list["ProjectAction"]] = relationship(back_populates="tenant")
     decisions: Mapped[list["ProjectDecision"]] = relationship(back_populates="tenant")
+    devices: Mapped[list["NetworkDevice"]] = relationship(back_populates="tenant")
+    circuits: Mapped[list["WanCircuit"]] = relationship(back_populates="tenant")
 
 
 class User(Base):
@@ -89,6 +91,8 @@ class Site(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tenant: Mapped[Tenant] = relationship(back_populates="sites")
     project: Mapped[Project] = relationship(back_populates="sites")
+    devices: Mapped[list["NetworkDevice"]] = relationship(back_populates="site")
+    circuits: Mapped[list["WanCircuit"]] = relationship(back_populates="site")
 
 
 class RaidItem(Base):
@@ -155,3 +159,40 @@ class ProjectDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tenant: Mapped[Tenant] = relationship(back_populates="decisions")
     project: Mapped[Project] = relationship(back_populates="decisions")
+
+
+class NetworkDevice(Base):
+    __tablename__ = "network_devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    hostname: Mapped[str] = mapped_column(String(160), index=True)
+    role: Mapped[str] = mapped_column(String(50), default="sdwan_edge")
+    vendor: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    management_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship(back_populates="devices")
+    site: Mapped[Site] = relationship(back_populates="devices")
+
+
+class WanCircuit(Base):
+    __tablename__ = "wan_circuits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    provider: Mapped[str] = mapped_column(String(120))
+    circuit_type: Mapped[str] = mapped_column(String(50), default="internet")
+    role: Mapped[str] = mapped_column(String(30), default="primary")
+    bandwidth_mbps: Mapped[int | None] = mapped_column(nullable=True)
+    public_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship(back_populates="circuits")
+    site: Mapped[Site] = relationship(back_populates="circuits")

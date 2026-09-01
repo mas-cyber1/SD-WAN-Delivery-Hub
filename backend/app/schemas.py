@@ -228,3 +228,59 @@ class ProjectDecisionResponse(BaseModel):
     decided_by: str | None
     decision_date: datetime | None
     created_at: datetime | None = None
+
+
+class NetworkDeviceCreate(BaseModel):
+    site_id: int
+    hostname: str = Field(min_length=2, max_length=160)
+    role: str = "sdwan_edge"
+    vendor: str | None = None
+    model: str | None = None
+    management_ip: str | None = None
+    status: str = "planned"
+    description: str | None = None
+
+
+class NetworkDeviceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    site_id: int
+    hostname: str
+    role: str
+    vendor: str | None
+    model: str | None
+    management_ip: str | None
+    status: str
+    description: str | None
+    created_at: datetime | None = None
+
+
+class WanCircuitCreate(BaseModel):
+    site_id: int
+    name: str = Field(min_length=2, max_length=160)
+    provider: str = Field(min_length=2, max_length=120)
+    circuit_type: str = "internet"
+    role: str = "primary"
+    bandwidth_mbps: int | None = Field(default=None, ge=0)
+    public_ip: str | None = None
+    status: str = "planned"
+    description: str | None = None
+
+
+class WanCircuitResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    site_id: int
+    name: str
+    provider: str
+    circuit_type: str
+    role: str
+    bandwidth_mbps: int | None
+    public_ip: str | None
+    status: str
+    description: str | None
+    created_at: datetime | None = None

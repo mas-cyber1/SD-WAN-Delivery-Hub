@@ -89,6 +89,7 @@ button { font: inherit; }
 .hierarchy-stack { display: grid; gap: 12px; margin-top: 20px; }
 .hierarchy-card { border: 1px solid #dce7e5; border-radius: 10px; background: #fff; padding: 14px; }
 .nested-project { border-top: 1px solid #e4ecea; padding-top: 12px; }
+.inventory-site { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f3f7f6; }
 .hierarchy-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .hierarchy-header strong { display: block; font-size: 14px; color: #17212b; }
 .hierarchy-header span { display: block; font-size: 11px; color: #71837e; }

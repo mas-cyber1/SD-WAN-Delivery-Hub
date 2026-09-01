@@ -16,6 +16,7 @@ class Tenant(Base):
     clients: Mapped[list["Client"]] = relationship(back_populates="tenant")
     projects: Mapped[list["Project"]] = relationship(back_populates="tenant")
     sites: Mapped[list["Site"]] = relationship(back_populates="tenant")
+    raid_items: Mapped[list["RaidItem"]] = relationship(back_populates="tenant")
 
 
 class User(Base):
@@ -63,6 +64,7 @@ class Project(Base):
     tenant: Mapped[Tenant] = relationship(back_populates="projects")
     client: Mapped[Client] = relationship(back_populates="projects")
     sites: Mapped[list["Site"]] = relationship(back_populates="project")
+    raid_items: Mapped[list["RaidItem"]] = relationship(back_populates="project")
 
 
 class Site(Base):
@@ -81,3 +83,21 @@ class Site(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tenant: Mapped[Tenant] = relationship(back_populates="sites")
     project: Mapped[Project] = relationship(back_populates="sites")
+
+
+class RaidItem(Base):
+    __tablename__ = "raid_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    item_type: Mapped[str] = mapped_column(String(30), default="risk")
+    title: Mapped[str] = mapped_column(String(200), index=True)
+    description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="open")
+    priority: Mapped[str] = mapped_column(String(30), default="medium")
+    owner: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship(back_populates="raid_items")
+    project: Mapped[Project] = relationship(back_populates="raid_items")

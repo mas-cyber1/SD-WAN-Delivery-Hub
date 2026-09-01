@@ -97,3 +97,30 @@ class SiteResponse(BaseModel):
     address: str | None
     description: str | None
     created_at: datetime | None = None
+
+
+class RaidItemCreate(BaseModel):
+    project_id: int
+    item_type: str = "risk"
+    title: str = Field(min_length=2, max_length=200)
+    description: str | None = None
+    status: str = "open"
+    priority: str = "medium"
+    owner: str | None = None
+    due_date: datetime | None = None
+
+
+class RaidItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    project_id: int
+    item_type: str
+    title: str
+    description: str | None
+    status: str
+    priority: str
+    owner: str | None
+    due_date: datetime | None
+    created_at: datetime | None = None

@@ -59,6 +59,19 @@ type SiteRecord = {
   created_at?: string | null
 }
 
+type RaidItemRecord = {
+  id: number
+  project_id: number
+  item_type: string
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  owner: string | null
+  due_date: string | null
+  created_at?: string | null
+}
+
 const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', description: 'See delivery health at a glance.', icon: Gauge },
   { id: 'clients', label: 'Clients', description: 'Manage client information.', icon: Users },
@@ -98,6 +111,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
   const [clients, setClients] = useState<ClientRecord[]>([])
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [sites, setSites] = useState<SiteRecord[]>([])
+  const [raidItems, setRaidItems] = useState<RaidItemRecord[]>([])
   const active = modules.find((module) => module.id === activeModule) ?? modules[0]
   const ActiveIcon = active.icon
 
@@ -125,10 +139,19 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
     }
   }
 
+  const loadRaidItems = async () => {
+    const response = await fetch('/api/raid', { headers: { Authorization: `Bearer ${token}` } })
+    if (response.ok) {
+      const data = (await response.json()) as RaidItemRecord[]
+      setRaidItems(data)
+    }
+  }
+
   useEffect(() => {
     void loadClients()
     void loadProjects()
     void loadSites()
+    void loadRaidItems()
   }, [token])
 
   return (
@@ -165,7 +188,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
         </header>
         <div className="content">
           <section className="welcome-row"><div><p className="eyebrow">SD-WAN project delivery</p><h2>{active.label}</h2><p className="muted">{active.description}</p></div><button className="primary-button"><BarChart3 size={17} /> View pilot overview</button></section>
-          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
+          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
         </div>
       </main>
     </div>
@@ -197,7 +220,7 @@ function Login({ onLogin }: { onLogin: (token: string, email: string) => void })
   return <main className="login-page"><section className="login-panel"><div className="brand-mark"><Activity size={19} /></div><p className="eyebrow">Internal department workspace</p><h1>SD-WAN Delivery Hub</h1><p className="muted">Sign in to manage project delivery information.</p><form onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="username" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="current-password" /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button login-button" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button></form></section></main>
 }
 
-function Dashboard({ clients, projects, sites }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[] }) {
+function Dashboard({ clients, projects, sites, raidItems }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[]; raidItems: RaidItemRecord[] }) {
   const clientPortfolio = clients.map((client) => ({
     client,
     projectsForClient: projects.filter((project) => project.client_id === client.id),
@@ -209,7 +232,7 @@ function Dashboard({ clients, projects, sites }: { clients: ClientRecord[]; proj
       <Metric label="Active clients" value={String(clients.length)} detail={clients.length === 1 ? 'Client tracked' : 'Clients tracked'} />
       <Metric label="Active projects" value={String(projects.length)} detail={projects.length === 1 ? 'Project in flight' : 'Projects in flight'} />
       <Metric label="Sites in scope" value={String(sites.length)} detail={sites.length === 1 ? 'Site recorded' : 'Sites recorded'} />
-      <Metric label="Overall health" value={projects.length > 0 ? 'Live' : 'Ready'} detail={projects.length > 0 ? 'The portfolio is active' : 'Pilot workspace'} accent />
+      <Metric label="Open RAID items" value={String(raidItems.filter((item) => item.status === 'open').length)} detail="Risks, actions and dependencies" accent />
     </section>
     <section className="dashboard-grid">
       <div className="panel panel-large"><div className="panel-heading"><div><h3>Portfolio by client</h3><p className="muted">Projects grouped under each client account.</p></div><span className="panel-label">Hierarchy</span></div>
@@ -220,6 +243,48 @@ function Dashboard({ clients, projects, sites }: { clients: ClientRecord[]; proj
       </div>
     </section>
   </>
+}
+
+function RaidWorkspace({ token, projects, raidItems, onRaidChanged }: { token: string; projects: ProjectRecord[]; raidItems: RaidItemRecord[]; onRaidChanged: () => Promise<void> }) {
+  const [form, setForm] = useState({ project_id: '', item_type: 'risk', title: '', description: '', status: 'open', priority: 'medium', owner: '', due_date: '' })
+  const [filter, setFilter] = useState('all')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    try {
+      const response = await fetch('/api/raid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...form, project_id: Number(form.project_id), description: form.description || null, owner: form.owner || null, due_date: form.due_date ? new Date(form.due_date).toISOString() : null }),
+      })
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({ detail: 'Unable to create RAID item' }))) as { detail?: string }
+        throw new Error(payload.detail ?? 'Unable to create RAID item')
+      }
+      setForm({ project_id: '', item_type: 'risk', title: '', description: '', status: 'open', priority: 'medium', owner: '', due_date: '' })
+      await onRaidChanged()
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Unable to create RAID item')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const visibleItems = filter === 'all' ? raidItems : raidItems.filter((item) => item.status === filter)
+  const projectName = (projectId: number) => projects.find((project) => project.id === projectId)?.name ?? 'Unknown project'
+
+  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>RAID register</h3><p className="muted">Risks, actions, issues and dependencies linked to projects.</p></div><span className="panel-label">{raidItems.length} total</span></div>
+    <div className="filter-row"><button className={`filter-button ${filter === 'all' ? 'selected' : ''}`} onClick={() => setFilter('all')}>All</button><button className={`filter-button ${filter === 'open' ? 'selected' : ''}`} onClick={() => setFilter('open')}>Open</button><button className={`filter-button ${filter === 'in_progress' ? 'selected' : ''}`} onClick={() => setFilter('in_progress')}>In progress</button><button className={`filter-button ${filter === 'closed' ? 'selected' : ''}`} onClick={() => setFilter('closed')}>Closed</button></div>
+    {visibleItems.length === 0 ? <div className="empty-state compact"><ClipboardList size={29} /><span>No RAID items match this view</span></div> : <div className="data-table">{visibleItems.map((item) => <div key={item.id} className="table-row"><div><strong>{item.title}</strong><span>{item.item_type} · {projectName(item.project_id)}{item.owner ? ` · ${item.owner}` : ''}</span></div><div className="project-meta"><span className={`status-badge ${item.priority}`}>{item.priority}</span><span className={`status-badge ${item.status}`}>{item.status}</span></div></div>)}</div>}
+  </section>
+    <section className="panel"><div className="panel-heading"><div><h3>Add RAID item</h3><p className="muted">Capture an item before it becomes a delivery surprise.</p></div><span className="panel-label"><Plus size={14} /></span></div>
+      <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Type<select value={form.item_type} onChange={(event) => setForm({ ...form, item_type: event.target.value })}><option value="risk">Risk</option><option value="action">Action</option><option value="issue">Issue</option><option value="dependency">Dependency</option></select></label><label>Title<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="open">Open</option><option value="in_progress">In progress</option><option value="closed">Closed</option></select></label><label>Priority<select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Owner<input value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} /></label><label>Due date<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save RAID item'}</button></form>
+    </section>
+  </div>
 }
 
 function ClientWorkspace({ token, clients, onClientsChanged }: { token: string; clients: ClientRecord[]; onClientsChanged: () => Promise<void> }) {

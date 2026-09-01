@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.auth import hash_password
 from app.database import Base, SessionLocal, engine
-from app.models import Client, Project, Site, Tenant, User
+from app.models import Client, Project, RaidItem, Site, Tenant, User
 
 
 def main() -> None:

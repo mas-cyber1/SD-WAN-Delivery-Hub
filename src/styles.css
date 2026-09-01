@@ -81,6 +81,8 @@ button { font: inherit; }
 .status-badge.blocked, .status-badge.red { background: #fbe1df; color: #8d3c38; }
 .status-badge.completed, .status-badge.ready { background: #dfeaf8; color: #255296; }
 .status-badge.in_progress { background: #eaf0ff; color: #2a4d9a; }
+.status-badge.test_turn_up_only { background: #eaf0ff; color: #2a4d9a; }
+.status-badge.lan_migrated { background: #e2f1e4; color: #2b6d4c; }
 .muted-tag { background: #edf0f1; color: #4c5c5d; }
 .project-meta { display: flex; align-items: center; gap: 8px; }
 .data-table { display: grid; gap: 10px; margin-top: 20px; }

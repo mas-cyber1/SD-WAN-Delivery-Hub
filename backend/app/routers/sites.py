@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Site, User
-from app.schemas import SiteCreate, SiteResponse
+from app.schemas import SiteCreate, SiteResponse, SiteUpdate
 
 router = APIRouter()
 
@@ -40,6 +40,23 @@ def create_site(payload: SiteCreate, db: Session = Depends(get_db), user: User =
         description=payload.description,
     )
     db.add(site)
+    db.commit()
+    db.refresh(site)
+    return site
+
+
+@router.patch("/{site_id}", response_model=SiteResponse)
+def update_site(
+    site_id: int,
+    payload: SiteUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Site:
+    site = db.scalar(select(Site).where(Site.id == site_id, Site.tenant_id == user.tenant_id))
+    if site is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(site, field, value)
     db.commit()
     db.refresh(site)
     return site

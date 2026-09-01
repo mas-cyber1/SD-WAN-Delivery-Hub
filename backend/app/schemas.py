@@ -99,6 +99,16 @@ class SiteResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class SiteUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=200)
+    site_code: str | None = Field(default=None, min_length=2, max_length=60)
+    region: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    address: str | None = None
+    description: str | None = None
+
+
 class RaidItemCreate(BaseModel):
     project_id: int
     item_type: str = "risk"

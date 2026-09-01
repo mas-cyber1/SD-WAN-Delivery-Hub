@@ -569,6 +569,8 @@ function ProjectWorkspace({ token, clients, projects, onProjectsChanged }: { tok
 
 function SiteWorkspace({ token, projects, sites, onSitesChanged }: { token: string; projects: ProjectRecord[]; sites: SiteRecord[]; onSitesChanged: () => Promise<void> }) {
   const [form, setForm] = useState({ project_id: '', name: '', site_code: '', region: '', status: 'planned', priority: 'normal', address: '', description: '' })
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', site_code: '', region: '', status: 'planned', priority: 'normal', address: '', description: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -601,19 +603,37 @@ function SiteWorkspace({ token, projects, sites, onSitesChanged }: { token: stri
     }
   }
 
+  function beginSiteEdit(site: SiteRecord) {
+    setError('')
+    setEditingId(site.id)
+    setEditForm({ name: site.name, site_code: site.site_code, region: site.region ?? '', status: site.status, priority: site.priority, address: site.address ?? '', description: site.description ?? '' })
+  }
+
+  async function saveSite(siteId: number) {
+    setError('')
+    try {
+      const response = await fetch(`/api/sites/${siteId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...editForm, region: editForm.region || null, address: editForm.address || null, description: editForm.description || null }) })
+      if (!response.ok) throw new Error('Unable to update site')
+      setEditingId(null)
+      await onSitesChanged()
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Unable to update site')
+    }
+  }
+
   const projectSites = projects.map((project) => ({
     project,
     sitesForProject: sites.filter((site) => site.project_id === project.id),
   }))
 
   return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Sites by project</h3><p className="muted">Every site is linked to a specific project.</p></div><span className="panel-label">{sites.length} total</span></div>
-    {projects.length === 0 ? <div className="empty-state compact"><FolderKanban size={29} /><span>No projects available to link sites</span></div> : <div className="hierarchy-stack">{projectSites.map(({ project, sitesForProject }) => <div key={project.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className="muted-tag">{sitesForProject.length} sites</span></div>{sitesForProject.length === 0 ? <p className="muted">No sites linked to this project yet.</p> : <div className="nested-list">{sitesForProject.map((site) => <div key={site.id} className="nested-item"><div><strong>{site.name}</strong><span>{site.site_code}</span></div><span className={`status-badge ${site.status}`}>{site.status}</span></div>)}</div>}</div>)}</div>}
+    {projects.length === 0 ? <div className="empty-state compact"><FolderKanban size={29} /><span>No projects available to link sites</span></div> : <div className="hierarchy-stack">{projectSites.map(({ project, sitesForProject }) => <div key={project.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className="muted-tag">{sitesForProject.length} sites</span></div>{sitesForProject.length === 0 ? <p className="muted">No sites linked to this project yet.</p> : <div className="nested-list">{sitesForProject.map((site) => editingId === site.id ? <div key={site.id} className="raid-edit-row"><div className="form-grid compact-form"><label>Site name<input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} /></label><label>Site code<input value={editForm.site_code} onChange={(event) => setEditForm({ ...editForm, site_code: event.target.value })} /></label><label>Status<select value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}><option value="planned">Planned</option><option value="test_turn_up_only">Test and Turn up Only</option><option value="lan_migrated">LAN migrated</option><option value="in_progress">In progress</option><option value="ready">Ready</option><option value="blocked">Blocked</option></select></label><label>Priority<select value={editForm.priority} onChange={(event) => setEditForm({ ...editForm, priority: event.target.value })}><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Region<input value={editForm.region} onChange={(event) => setEditForm({ ...editForm, region: event.target.value })} /></label><label>Address<input value={editForm.address} onChange={(event) => setEditForm({ ...editForm, address: event.target.value })} /></label><label>Description<textarea value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} rows={2} /></label></div><div className="edit-actions"><button className="primary-button" onClick={() => void saveSite(site.id)}>Save changes</button><button className="filter-button" onClick={() => setEditingId(null)}>Cancel</button></div></div> : <div key={site.id} className="nested-item"><div><strong>{site.name}</strong><span>{site.site_code}</span></div><div className="project-meta"><span className={`status-badge ${site.status}`}>{site.status}</span><button className="filter-button" onClick={() => beginSiteEdit(site)}>Edit</button></div></div>)}</div>}</div>)}</div>}
   </section>
     <section className="panel"><div className="panel-heading"><div><h3>Add site</h3><p className="muted">Track a location and delivery scope</p></div><span className="panel-label"><Plus size={14} /></span></div>
       <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required>
         <option value="">Select project</option>
         {projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
-      </select></label><label>Site name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Site code<input value={form.site_code} onChange={(event) => setForm({ ...form, site_code: event.target.value })} required /></label><label>Region<input value={form.region} onChange={(event) => setForm({ ...form, region: event.target.value })} /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="ready">Ready</option><option value="blocked">Blocked</option></select></label><label>Priority<select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Address<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save site'}</button></form>
+      </select></label><label>Site name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Site code<input value={form.site_code} onChange={(event) => setForm({ ...form, site_code: event.target.value })} required /></label><label>Region<input value={form.region} onChange={(event) => setForm({ ...form, region: event.target.value })} /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="test_turn_up_only">Test and Turn up Only</option><option value="lan_migrated">LAN migrated</option><option value="in_progress">In progress</option><option value="ready">Ready</option><option value="blocked">Blocked</option></select></label><label>Priority<select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Address<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save site'}</button></form>
     </section>
   </div>
 }

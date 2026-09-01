@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth import get_current_user
 from app.models import User
 from app.routers.auth import router as auth_router
+from app.routers.clients import router as clients_router
+from app.routers.projects import router as projects_router
 
 app = FastAPI(title="SD-WAN Delivery Hub API", version="0.1.0")
 
@@ -16,6 +18,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
+app.include_router(clients_router, prefix="/api/clients", tags=["clients"])
+app.include_router(projects_router, prefix="/api/projects", tags=["projects"])
 
 
 @app.get("/api/health")

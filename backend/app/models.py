@@ -15,6 +15,7 @@ class Tenant(Base):
     users: Mapped[list["User"]] = relationship(back_populates="tenant")
     clients: Mapped[list["Client"]] = relationship(back_populates="tenant")
     projects: Mapped[list["Project"]] = relationship(back_populates="tenant")
+    sites: Mapped[list["Site"]] = relationship(back_populates="tenant")
 
 
 class User(Base):
@@ -61,3 +62,22 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tenant: Mapped[Tenant] = relationship(back_populates="projects")
     client: Mapped[Client] = relationship(back_populates="projects")
+    sites: Mapped[list["Site"]] = relationship(back_populates="project")
+
+
+class Site(Base):
+    __tablename__ = "sites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    site_code: Mapped[str] = mapped_column(String(60), index=True)
+    region: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="planned")
+    priority: Mapped[str] = mapped_column(String(40), default="normal")
+    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship(back_populates="sites")
+    project: Mapped[Project] = relationship(back_populates="sites")

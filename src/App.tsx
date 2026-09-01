@@ -46,6 +46,19 @@ type ProjectRecord = {
   created_at?: string | null
 }
 
+type SiteRecord = {
+  id: number
+  project_id: number
+  name: string
+  site_code: string
+  region: string | null
+  status: string
+  priority: string
+  address: string | null
+  description: string | null
+  created_at?: string | null
+}
+
 const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', description: 'See delivery health at a glance.', icon: Gauge },
   { id: 'clients', label: 'Clients', description: 'Manage client information.', icon: Users },
@@ -84,6 +97,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
   const [mobileOpen, setMobileOpen] = useState(false)
   const [clients, setClients] = useState<ClientRecord[]>([])
   const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [sites, setSites] = useState<SiteRecord[]>([])
   const active = modules.find((module) => module.id === activeModule) ?? modules[0]
   const ActiveIcon = active.icon
 
@@ -103,9 +117,18 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
     }
   }
 
+  const loadSites = async () => {
+    const response = await fetch('/api/sites', { headers: { Authorization: `Bearer ${token}` } })
+    if (response.ok) {
+      const data = (await response.json()) as SiteRecord[]
+      setSites(data)
+    }
+  }
+
   useEffect(() => {
     void loadClients()
     void loadProjects()
+    void loadSites()
   }, [token])
 
   return (
@@ -142,7 +165,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
         </header>
         <div className="content">
           <section className="welcome-row"><div><p className="eyebrow">SD-WAN project delivery</p><h2>{active.label}</h2><p className="muted">{active.description}</p></div><button className="primary-button"><BarChart3 size={17} /> View pilot overview</button></section>
-          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
+          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
         </div>
       </main>
     </div>
@@ -174,12 +197,12 @@ function Login({ onLogin }: { onLogin: (token: string, email: string) => void })
   return <main className="login-page"><section className="login-panel"><div className="brand-mark"><Activity size={19} /></div><p className="eyebrow">Internal department workspace</p><h1>SD-WAN Delivery Hub</h1><p className="muted">Sign in to manage project delivery information.</p><form onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="username" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="current-password" /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button login-button" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button></form></section></main>
 }
 
-function Dashboard({ clients, projects }: { clients: ClientRecord[]; projects: ProjectRecord[] }) {
+function Dashboard({ clients, projects, sites }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[] }) {
   return <>
     <section className="metric-grid">
       <Metric label="Active clients" value={String(clients.length)} detail={clients.length === 1 ? 'Client tracked' : 'Clients tracked'} />
       <Metric label="Active projects" value={String(projects.length)} detail={projects.length === 1 ? 'Project in flight' : 'Projects in flight'} />
-      <Metric label="Open RAID items" value="0" detail="No risks or issues logged" />
+      <Metric label="Sites in scope" value={String(sites.length)} detail={sites.length === 1 ? 'Site recorded' : 'Sites recorded'} />
       <Metric label="Overall health" value={projects.length > 0 ? 'Live' : 'Ready'} detail={projects.length > 0 ? 'The portfolio is active' : 'Pilot workspace'} accent />
     </section>
     <section className="dashboard-grid">
@@ -273,6 +296,52 @@ function ProjectWorkspace({ token, clients, projects, onProjectsChanged }: { tok
         <option value="">Select client</option>
         {clients.map((client) => <option key={client.id} value={String(client.id)}>{client.name}</option>)}
       </select></label><label>Project name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Project code<input value={form.project_code} onChange={(event) => setForm({ ...form, project_code: event.target.value })} required /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planning">Planning</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="completed">Completed</option></select></label><label>Health<select value={form.health} onChange={(event) => setForm({ ...form, health: event.target.value })}><option value="green">Green</option><option value="amber">Amber</option><option value="red">Red</option></select></label><label>Completion %<input type="number" min={0} max={100} value={form.completion_percentage} onChange={(event) => setForm({ ...form, completion_percentage: Number(event.target.value) })} /></label><label>Start date<input type="date" value={form.start_date} onChange={(event) => setForm({ ...form, start_date: event.target.value })} /></label><label>Target completion<input type="date" value={form.target_completion_date} onChange={(event) => setForm({ ...form, target_completion_date: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save project'}</button></form>
+    </section>
+  </div>
+}
+
+function SiteWorkspace({ token, projects, sites, onSitesChanged }: { token: string; projects: ProjectRecord[]; sites: SiteRecord[]; onSitesChanged: () => Promise<void> }) {
+  const [form, setForm] = useState({ project_id: '', name: '', site_code: '', region: '', status: 'planned', priority: 'normal', address: '', description: '' })
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    try {
+      const response = await fetch('/api/sites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ...form,
+          project_id: Number(form.project_id),
+          region: form.region || null,
+          address: form.address || null,
+          description: form.description || null,
+        }),
+      })
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({ detail: 'Unable to create site' }))) as { detail?: string }
+        throw new Error(payload.detail ?? 'Unable to create site')
+      }
+      setForm({ project_id: '', name: '', site_code: '', region: '', status: 'planned', priority: 'normal', address: '', description: '' })
+      await onSitesChanged()
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Unable to create site')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Site list</h3><p className="muted">Current sites and status across active projects</p></div><span className="panel-label">{sites.length} total</span></div>
+    {sites.length === 0 ? <div className="empty-state compact"><Network size={29} /><span>No sites available</span></div> : <div className="data-table">{sites.map((site) => <div key={site.id} className="table-row"><div><strong>{site.name}</strong><span>{site.site_code}</span></div><div className="project-meta"><span className={`status-badge ${site.status}`}>{site.status}</span><span className="muted-tag">{site.priority}</span></div></div>)}</div>}
+  </section>
+    <section className="panel"><div className="panel-heading"><div><h3>Add site</h3><p className="muted">Track a location and delivery scope</p></div><span className="panel-label"><Plus size={14} /></span></div>
+      <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required>
+        <option value="">Select project</option>
+        {projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
+      </select></label><label>Site name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Site code<input value={form.site_code} onChange={(event) => setForm({ ...form, site_code: event.target.value })} required /></label><label>Region<input value={form.region} onChange={(event) => setForm({ ...form, region: event.target.value })} /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="ready">Ready</option><option value="blocked">Blocked</option></select></label><label>Priority<select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Address<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save site'}</button></form>
     </section>
   </div>
 }

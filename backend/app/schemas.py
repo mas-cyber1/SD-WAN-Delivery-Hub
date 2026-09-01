@@ -158,3 +158,47 @@ class MilestoneResponse(BaseModel):
     due_date: datetime | None
     completed_date: datetime | None
     created_at: datetime | None = None
+
+
+class ProjectActionCreate(BaseModel):
+    project_id: int
+    title: str = Field(min_length=2, max_length=200)
+    description: str | None = None
+    status: str = "open"
+    owner: str | None = None
+    due_date: datetime | None = None
+
+
+class ProjectActionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    project_id: int
+    title: str
+    description: str | None
+    status: str
+    owner: str | None
+    due_date: datetime | None
+    created_at: datetime | None = None
+
+
+class ProjectDecisionCreate(BaseModel):
+    project_id: int
+    title: str = Field(min_length=2, max_length=200)
+    decision: str = Field(min_length=2, max_length=2000)
+    decided_by: str | None = None
+    decision_date: datetime | None = None
+
+
+class ProjectDecisionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    project_id: int
+    title: str
+    decision: str
+    decided_by: str | None
+    decision_date: datetime | None
+    created_at: datetime | None = None

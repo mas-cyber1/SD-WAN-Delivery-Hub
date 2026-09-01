@@ -84,6 +84,25 @@ type MilestoneRecord = {
   created_at?: string | null
 }
 
+type ActionRecord = {
+  id: number
+  project_id: number
+  title: string
+  description: string | null
+  status: string
+  owner: string | null
+  due_date: string | null
+}
+
+type DecisionRecord = {
+  id: number
+  project_id: number
+  title: string
+  decision: string
+  decided_by: string | null
+  decision_date: string | null
+}
+
 const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', description: 'See delivery health at a glance.', icon: Gauge },
   { id: 'clients', label: 'Clients', description: 'Manage client information.', icon: Users },
@@ -91,6 +110,7 @@ const modules: Module[] = [
   { id: 'sites', label: 'Sites', description: 'Maintain site and network data.', icon: Network },
   { id: 'raid', label: 'RAID Log', description: 'Track risks and dependencies.', icon: ClipboardList },
   { id: 'scheduler', label: 'Scheduler', description: 'Manage milestones and due dates.', icon: ClipboardList },
+  { id: 'workflow', label: 'Actions & Decisions', description: 'Track commitments and decisions.', icon: ClipboardList },
   { id: 'documents', label: 'Documents', description: 'Organise project documents.', icon: FileText },
 ]
 
@@ -126,6 +146,8 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
   const [sites, setSites] = useState<SiteRecord[]>([])
   const [raidItems, setRaidItems] = useState<RaidItemRecord[]>([])
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([])
+  const [actions, setActions] = useState<ActionRecord[]>([])
+  const [decisions, setDecisions] = useState<DecisionRecord[]>([])
   const active = modules.find((module) => module.id === activeModule) ?? modules[0]
   const ActiveIcon = active.icon
 
@@ -169,12 +191,20 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
     }
   }
 
+  const loadWorkflow = async () => {
+    const headers = { Authorization: `Bearer ${token}` }
+    const [actionsResponse, decisionsResponse] = await Promise.all([fetch('/api/workflow/actions', { headers }), fetch('/api/workflow/decisions', { headers })])
+    if (actionsResponse.ok) setActions((await actionsResponse.json()) as ActionRecord[])
+    if (decisionsResponse.ok) setDecisions((await decisionsResponse.json()) as DecisionRecord[])
+  }
+
   useEffect(() => {
     void loadClients()
     void loadProjects()
     void loadSites()
     void loadRaidItems()
     void loadMilestones()
+    void loadWorkflow()
   }, [token])
 
   return (
@@ -211,7 +241,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
         </header>
         <div className="content">
           <section className="welcome-row"><div><p className="eyebrow">SD-WAN project delivery</p><h2>{active.label}</h2><p className="muted">{active.description}</p></div><button className="primary-button"><BarChart3 size={17} /> View pilot overview</button></section>
-          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} milestones={milestones} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : activeModule === 'scheduler' ? <SchedulerWorkspace token={token} clients={clients} projects={projects} milestones={milestones} onMilestonesChanged={loadMilestones} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
+          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} milestones={milestones} actions={actions} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : activeModule === 'scheduler' ? <SchedulerWorkspace token={token} clients={clients} projects={projects} milestones={milestones} onMilestonesChanged={loadMilestones} /> : activeModule === 'workflow' ? <WorkflowWorkspace token={token} clients={clients} projects={projects} actions={actions} decisions={decisions} onWorkflowChanged={loadWorkflow} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
         </div>
       </main>
     </div>
@@ -243,7 +273,7 @@ function Login({ onLogin }: { onLogin: (token: string, email: string) => void })
   return <main className="login-page"><section className="login-panel"><div className="brand-mark"><Activity size={19} /></div><p className="eyebrow">Internal department workspace</p><h1>SD-WAN Delivery Hub</h1><p className="muted">Sign in to manage project delivery information.</p><form onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="username" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="current-password" /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button login-button" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button></form></section></main>
 }
 
-function Dashboard({ clients, projects, sites, raidItems, milestones }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[]; raidItems: RaidItemRecord[]; milestones: MilestoneRecord[] }) {
+function Dashboard({ clients, projects, sites, raidItems, milestones, actions }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[]; raidItems: RaidItemRecord[]; milestones: MilestoneRecord[]; actions: ActionRecord[] }) {
   const clientPortfolio = clients.map((client) => ({
     client,
     projectsForClient: projects.filter((project) => project.client_id === client.id),
@@ -255,7 +285,7 @@ function Dashboard({ clients, projects, sites, raidItems, milestones }: { client
       <Metric label="Active clients" value={String(clients.length)} detail={clients.length === 1 ? 'Client tracked' : 'Clients tracked'} />
       <Metric label="Active projects" value={String(projects.length)} detail={projects.length === 1 ? 'Project in flight' : 'Projects in flight'} />
       <Metric label="Sites in scope" value={String(sites.length)} detail={sites.length === 1 ? 'Site recorded' : 'Sites recorded'} />
-      <Metric label="Upcoming milestones" value={String(milestones.filter((milestone) => milestone.status !== 'completed').length)} detail="Planned delivery checkpoints" accent />
+      <Metric label="Open actions" value={String(actions.filter((action) => action.status !== 'completed').length)} detail="Outstanding delivery actions" accent />
     </section>
     <section className="dashboard-grid">
       <div className="panel panel-large"><div className="panel-heading"><div><h3>Portfolio by client</h3><p className="muted">Projects grouped under each client account.</p></div><span className="panel-label">Hierarchy</span></div>
@@ -380,6 +410,35 @@ function SchedulerWorkspace({ token, clients, projects, milestones, onMilestones
       <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Milestone name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="delayed">Delayed</option></select></label><label>Owner<input value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} /></label><label>Due date<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save milestone'}</button></form>
     </section>
   </div>
+}
+
+function WorkflowWorkspace({ token, clients, projects, actions, decisions, onWorkflowChanged }: { token: string; clients: ClientRecord[]; projects: ProjectRecord[]; actions: ActionRecord[]; decisions: DecisionRecord[]; onWorkflowChanged: () => Promise<void> }) {
+  const [actionForm, setActionForm] = useState({ project_id: '', title: '', description: '', status: 'open', owner: '', due_date: '' })
+  const [decisionForm, setDecisionForm] = useState({ project_id: '', title: '', decision: '', decided_by: '', decision_date: '' })
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const projectName = (projectId: number) => projects.find((project) => project.id === projectId)?.name ?? 'Unknown project'
+  const clientName = (projectId: number) => { const project = projects.find((item) => item.id === projectId); return clients.find((client) => client.id === project?.client_id)?.name ?? 'Unknown client' }
+
+  async function createAction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError(''); setSubmitting(true)
+    try {
+      const response = await fetch('/api/workflow/actions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...actionForm, project_id: Number(actionForm.project_id), description: actionForm.description || null, owner: actionForm.owner || null, due_date: actionForm.due_date ? new Date(actionForm.due_date).toISOString() : null }) })
+      if (!response.ok) throw new Error('Unable to create action')
+      setActionForm({ project_id: '', title: '', description: '', status: 'open', owner: '', due_date: '' }); await onWorkflowChanged()
+    } catch (submitError) { setError(submitError instanceof Error ? submitError.message : 'Unable to create action') } finally { setSubmitting(false) }
+  }
+
+  async function createDecision(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError(''); setSubmitting(true)
+    try {
+      const response = await fetch('/api/workflow/decisions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...decisionForm, project_id: Number(decisionForm.project_id), decided_by: decisionForm.decided_by || null, decision_date: decisionForm.decision_date ? new Date(decisionForm.decision_date).toISOString() : null }) })
+      if (!response.ok) throw new Error('Unable to create decision')
+      setDecisionForm({ project_id: '', title: '', decision: '', decided_by: '', decision_date: '' }); await onWorkflowChanged()
+    } catch (submitError) { setError(submitError instanceof Error ? submitError.message : 'Unable to create decision') } finally { setSubmitting(false) }
+  }
+
+  return <div className="workflow-layout"><section className="panel"><div className="panel-heading"><div><h3>Actions</h3><p className="muted">Commitments grouped under each client and project.</p></div><span className="panel-label">{actions.length} total</span></div>{actions.length === 0 ? <div className="empty-state compact"><ClipboardList size={29} /><span>No actions recorded</span></div> : <div className="data-table">{actions.map((action) => <div key={action.id} className="table-row"><div><strong>{action.title}</strong><span>{clientName(action.project_id)} · {projectName(action.project_id)}{action.owner ? ` · ${action.owner}` : ''}{action.due_date ? ` · due ${new Date(action.due_date).toLocaleDateString()}` : ''}</span></div><span className={`status-badge ${action.status}`}>{action.status}</span></div>)}</div>}</section><section className="panel"><div className="panel-heading"><div><h3>Decisions</h3><p className="muted">Recorded project decisions and rationale.</p></div><span className="panel-label">{decisions.length} total</span></div>{decisions.length === 0 ? <div className="empty-state compact"><ClipboardList size={29} /><span>No decisions recorded</span></div> : <div className="data-table">{decisions.map((decision) => <div key={decision.id} className="table-row"><div><strong>{decision.title}</strong><span>{clientName(decision.project_id)} · {projectName(decision.project_id)}{decision.decided_by ? ` · ${decision.decided_by}` : ''}{decision.decision_date ? ` · ${new Date(decision.decision_date).toLocaleDateString()}` : ''}</span><p className="workflow-detail">{decision.decision}</p></div></div>)}</div>}</section><section className="panel"><div className="panel-heading"><div><h3>Capture workflow item</h3><p className="muted">Add an action or decision to a project.</p></div></div>{error && <p className="form-error">{error}</p>}<form className="form-grid" onSubmit={createAction}><h4>New action</h4><label>Project<select value={actionForm.project_id} onChange={(event) => setActionForm({ ...actionForm, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Title<input value={actionForm.title} onChange={(event) => setActionForm({ ...actionForm, title: event.target.value })} required /></label><label>Status<select value={actionForm.status} onChange={(event) => setActionForm({ ...actionForm, status: event.target.value })}><option value="open">Open</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select></label><label>Owner<input value={actionForm.owner} onChange={(event) => setActionForm({ ...actionForm, owner: event.target.value })} /></label><label>Due date<input type="date" value={actionForm.due_date} onChange={(event) => setActionForm({ ...actionForm, due_date: event.target.value })} /></label><label>Description<textarea value={actionForm.description} onChange={(event) => setActionForm({ ...actionForm, description: event.target.value })} rows={2} /></label><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save action'}</button></form><form className="form-grid workflow-form-divider" onSubmit={createDecision}><h4>New decision</h4><label>Project<select value={decisionForm.project_id} onChange={(event) => setDecisionForm({ ...decisionForm, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Title<input value={decisionForm.title} onChange={(event) => setDecisionForm({ ...decisionForm, title: event.target.value })} required /></label><label>Decided by<input value={decisionForm.decided_by} onChange={(event) => setDecisionForm({ ...decisionForm, decided_by: event.target.value })} /></label><label>Decision date<input type="date" value={decisionForm.decision_date} onChange={(event) => setDecisionForm({ ...decisionForm, decision_date: event.target.value })} /></label><label>Decision<textarea value={decisionForm.decision} onChange={(event) => setDecisionForm({ ...decisionForm, decision: event.target.value })} rows={3} required /></label><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save decision'}</button></form></section></div>
 }
 
 function ClientWorkspace({ token, clients, onClientsChanged }: { token: string; clients: ClientRecord[]; onClientsChanged: () => Promise<void> }) {

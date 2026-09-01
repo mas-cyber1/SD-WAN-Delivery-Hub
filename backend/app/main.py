@@ -9,6 +9,7 @@ from app.routers.projects import router as projects_router
 from app.routers.sites import router as sites_router
 from app.routers.raid import router as raid_router
 from app.routers.milestones import router as milestones_router
+from app.routers.workflow import router as workflow_router
 
 app = FastAPI(title="SD-WAN Delivery Hub API", version="0.1.0")
 
@@ -26,6 +27,7 @@ app.include_router(projects_router, prefix="/api/projects", tags=["projects"])
 app.include_router(sites_router, prefix="/api/sites", tags=["sites"])
 app.include_router(raid_router, prefix="/api/raid", tags=["raid"])
 app.include_router(milestones_router, prefix="/api/milestones", tags=["milestones"])
+app.include_router(workflow_router, prefix="/api/workflow", tags=["workflow"])
 
 
 @app.get("/api/health")

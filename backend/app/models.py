@@ -18,6 +18,8 @@ class Tenant(Base):
     sites: Mapped[list["Site"]] = relationship(back_populates="tenant")
     raid_items: Mapped[list["RaidItem"]] = relationship(back_populates="tenant")
     milestones: Mapped[list["Milestone"]] = relationship(back_populates="tenant")
+    actions: Mapped[list["ProjectAction"]] = relationship(back_populates="tenant")
+    decisions: Mapped[list["ProjectDecision"]] = relationship(back_populates="tenant")
 
 
 class User(Base):
@@ -67,6 +69,8 @@ class Project(Base):
     sites: Mapped[list["Site"]] = relationship(back_populates="project")
     raid_items: Mapped[list["RaidItem"]] = relationship(back_populates="project")
     milestones: Mapped[list["Milestone"]] = relationship(back_populates="project")
+    actions: Mapped[list["ProjectAction"]] = relationship(back_populates="project")
+    decisions: Mapped[list["ProjectDecision"]] = relationship(back_populates="project")
 
 
 class Site(Base):
@@ -120,3 +124,34 @@ class Milestone(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tenant: Mapped[Tenant] = relationship(back_populates="milestones")
     project: Mapped[Project] = relationship(back_populates="milestones")
+
+
+class ProjectAction(Base):
+    __tablename__ = "project_actions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    title: Mapped[str] = mapped_column(String(200), index=True)
+    description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="open")
+    owner: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship(back_populates="actions")
+    project: Mapped[Project] = relationship(back_populates="actions")
+
+
+class ProjectDecision(Base):
+    __tablename__ = "project_decisions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    title: Mapped[str] = mapped_column(String(200), index=True)
+    decision: Mapped[str] = mapped_column(String(2000))
+    decided_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    decision_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship(back_populates="decisions")
+    project: Mapped[Project] = relationship(back_populates="decisions")

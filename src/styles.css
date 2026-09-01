@@ -101,5 +101,11 @@ button { font: inherit; }
 .compact-form { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0; }
 .compact-form label:last-child { grid-column: 1 / -1; }
 .edit-actions { display: flex; gap: 8px; }
+.workflow-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.workflow-layout .panel:last-child { grid-column: 1 / -1; }
+.workflow-detail { margin-top: 8px; color: #445953; font-size: 12px; line-height: 1.5; }
+.workflow-form-divider { margin-top: 24px; padding-top: 20px; border-top: 1px solid #dce7e5; }
+.form-grid h4 { margin: 0; color: #17212b; font: 600 14px 'Space Grotesk', sans-serif; }
 @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } .content { padding: 30px 24px; } .topbar { padding: 0 24px; } .workspace-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .workflow-layout { grid-template-columns: 1fr; } .workflow-layout .panel:last-child { grid-column: auto; } }
 @media (max-width: 640px) { .sidebar { position: fixed; z-index: 20; inset: 0 auto 0 0; transform: translateX(-100%); } .sidebar.mobile-open { transform: translateX(0); } .sidebar.collapsed { width: 258px; } .sidebar.collapsed .brand div:last-of-type, .sidebar.collapsed .nav-item span, .sidebar.collapsed .collapse-button { display: block; } .mobile-close, .mobile-menu-button { display: block; } .mobile-menu-button { position: absolute; z-index: 5; top: 27px; left: 21px; color: #17212b; } .mobile-backdrop { display: block; position: fixed; z-index: 10; inset: 0; border: 0; background: rgba(16,44,45,.45); } .topbar { padding-left: 63px; } .topbar-meta > span:not(.status-dot) { display: none; } .content { padding: 27px 17px; } .welcome-row { align-items: start; flex-direction: column; } .welcome-row h2 { font-size: 26px; } .metric-grid, .dashboard-grid { grid-template-columns: 1fr; } }

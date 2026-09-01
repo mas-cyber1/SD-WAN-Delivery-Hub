@@ -183,6 +183,14 @@ class ProjectActionResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class ProjectActionUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = None
+    status: str | None = None
+    owner: str | None = None
+    due_date: datetime | None = None
+
+
 class ProjectDecisionCreate(BaseModel):
     project_id: int
     title: str = Field(min_length=2, max_length=200)

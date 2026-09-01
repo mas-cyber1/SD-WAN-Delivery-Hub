@@ -10,6 +10,7 @@ from app.models import Project, ProjectAction, ProjectDecision, User
 from app.schemas import (
     ProjectActionCreate,
     ProjectActionResponse,
+    ProjectActionUpdate,
     ProjectDecisionCreate,
     ProjectDecisionResponse,
 )
@@ -46,6 +47,23 @@ def create_action(
         due_date=payload.due_date,
     )
     db.add(action)
+    db.commit()
+    db.refresh(action)
+    return action
+
+
+@router.patch("/actions/{action_id}", response_model=ProjectActionResponse)
+def update_action(
+    action_id: int,
+    payload: ProjectActionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProjectAction:
+    action = db.scalar(select(ProjectAction).where(ProjectAction.id == action_id, ProjectAction.tenant_id == user.tenant_id))
+    if action is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Action not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(action, field, value)
     db.commit()
     db.refresh(action)
     return action

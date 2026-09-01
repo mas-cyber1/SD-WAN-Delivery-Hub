@@ -110,6 +110,16 @@ class RaidItemCreate(BaseModel):
     due_date: datetime | None = None
 
 
+class RaidItemUpdate(BaseModel):
+    item_type: str | None = None
+    title: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    owner: str | None = None
+    due_date: datetime | None = None
+
+
 class RaidItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

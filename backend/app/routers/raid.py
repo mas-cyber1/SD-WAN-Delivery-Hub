@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Project, RaidItem, User
-from app.schemas import RaidItemCreate, RaidItemResponse
+from app.schemas import RaidItemCreate, RaidItemResponse, RaidItemUpdate
 
 router = APIRouter()
 
@@ -44,6 +44,29 @@ def create_raid_item(
         due_date=payload.due_date,
     )
     db.add(raid_item)
+    db.commit()
+    db.refresh(raid_item)
+    return raid_item
+
+
+@router.patch("/{raid_item_id}", response_model=RaidItemResponse)
+def update_raid_item(
+    raid_item_id: int,
+    payload: RaidItemUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RaidItem:
+    raid_item = db.scalar(
+        select(RaidItem).where(
+            RaidItem.id == raid_item_id,
+            RaidItem.tenant_id == user.tenant_id,
+        )
+    )
+    if raid_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="RAID item not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(raid_item, field, value)
     db.commit()
     db.refresh(raid_item)
     return raid_item

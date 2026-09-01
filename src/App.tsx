@@ -375,6 +375,8 @@ function RaidWorkspace({ token, clients, projects, raidItems, onRaidChanged }: {
 
 function SchedulerWorkspace({ token, clients, projects, milestones, onMilestonesChanged }: { token: string; clients: ClientRecord[]; projects: ProjectRecord[]; milestones: MilestoneRecord[]; onMilestonesChanged: () => Promise<void> }) {
   const [form, setForm] = useState({ project_id: '', name: '', description: '', status: 'planned', owner: '', due_date: '' })
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', description: '', status: 'planned', owner: '', due_date: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -397,6 +399,24 @@ function SchedulerWorkspace({ token, clients, projects, milestones, onMilestones
     }
   }
 
+  function beginMilestoneEdit(milestone: MilestoneRecord) {
+    setError('')
+    setEditingId(milestone.id)
+    setEditForm({ name: milestone.name, description: milestone.description ?? '', status: milestone.status, owner: milestone.owner ?? '', due_date: milestone.due_date ? milestone.due_date.slice(0, 10) : '' })
+  }
+
+  async function saveMilestone(milestoneId: number) {
+    setError('')
+    try {
+      const response = await fetch(`/api/milestones/${milestoneId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...editForm, description: editForm.description || null, owner: editForm.owner || null, due_date: editForm.due_date ? new Date(editForm.due_date).toISOString() : null }) })
+      if (!response.ok) throw new Error('Unable to update milestone')
+      setEditingId(null)
+      await onMilestonesChanged()
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Unable to update milestone')
+    }
+  }
+
   const projectDetails = projects.map((project) => ({
     project,
     client: clients.find((client) => client.id === project.client_id),
@@ -404,7 +424,7 @@ function SchedulerWorkspace({ token, clients, projects, milestones, onMilestones
   }))
 
   return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Delivery milestones</h3><p className="muted">Schedule checkpoints grouped by client and project.</p></div><span className="panel-label">{milestones.length} total</span></div>
-    {projects.length === 0 ? <div className="empty-state compact"><FolderKanban size={29} /><span>No projects available</span></div> : <div className="hierarchy-stack">{projectDetails.map(({ project, client, milestonesForProject }) => <div key={project.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{client?.name ?? 'Unknown client'}</strong><span>{project.name} · {project.project_code}</span></div><span className="muted-tag">{milestonesForProject.length} milestones</span></div>{milestonesForProject.length === 0 ? <p className="muted">No milestones linked to this project yet.</p> : <div className="nested-list">{milestonesForProject.map((milestone) => <div key={milestone.id} className="nested-item"><div><strong>{milestone.name}</strong><span>{milestone.owner ? `Owner: ${milestone.owner}` : 'No owner'}{milestone.due_date ? ` · due ${new Date(milestone.due_date).toLocaleDateString()}` : ''}</span></div><span className={`status-badge ${milestone.status}`}>{milestone.status}</span></div>)}</div>}</div>)}</div>}
+    {projects.length === 0 ? <div className="empty-state compact"><FolderKanban size={29} /><span>No projects available</span></div> : <div className="hierarchy-stack">{projectDetails.map(({ project, client, milestonesForProject }) => <div key={project.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{client?.name ?? 'Unknown client'}</strong><span>{project.name} · {project.project_code}</span></div><span className="muted-tag">{milestonesForProject.length} milestones</span></div>{milestonesForProject.length === 0 ? <p className="muted">No milestones linked to this project yet.</p> : <div className="nested-list">{milestonesForProject.map((milestone) => editingId === milestone.id ? <div key={milestone.id} className="raid-edit-row"><div className="form-grid compact-form"><label>Milestone<input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} /></label><label>Status<select value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="delayed">Delayed</option></select></label><label>Owner<input value={editForm.owner} onChange={(event) => setEditForm({ ...editForm, owner: event.target.value })} /></label><label>Due date<input type="date" value={editForm.due_date} onChange={(event) => setEditForm({ ...editForm, due_date: event.target.value })} /></label><label>Description<textarea value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} rows={2} /></label></div><div className="edit-actions"><button className="primary-button" onClick={() => void saveMilestone(milestone.id)}>Save changes</button><button className="filter-button" onClick={() => setEditingId(null)}>Cancel</button></div></div> : <div key={milestone.id} className="nested-item"><div><strong>{milestone.name}</strong><span>{milestone.owner ? `Owner: ${milestone.owner}` : 'No owner'}{milestone.due_date ? ` · due ${new Date(milestone.due_date).toLocaleDateString()}` : ''}</span></div><div className="project-meta"><span className={`status-badge ${milestone.status}`}>{milestone.status}</span><button className="filter-button" onClick={() => beginMilestoneEdit(milestone)}>Edit</button></div></div>)}</div>}</div>)}</div>}
   </section>
     <section className="panel"><div className="panel-heading"><div><h3>Add milestone</h3><p className="muted">Create a dated checkpoint for a project.</p></div><span className="panel-label"><Plus size={14} /></span></div>
       <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Milestone name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="delayed">Delayed</option></select></label><label>Owner<input value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} /></label><label>Due date<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save milestone'}</button></form>

@@ -145,6 +145,14 @@ class MilestoneCreate(BaseModel):
     due_date: datetime | None = None
 
 
+class MilestoneUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = None
+    status: str | None = None
+    owner: str | None = None
+    due_date: datetime | None = None
+
+
 class MilestoneResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

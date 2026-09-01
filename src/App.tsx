@@ -72,12 +72,25 @@ type RaidItemRecord = {
   created_at?: string | null
 }
 
+type MilestoneRecord = {
+  id: number
+  project_id: number
+  name: string
+  description: string | null
+  status: string
+  owner: string | null
+  due_date: string | null
+  completed_date: string | null
+  created_at?: string | null
+}
+
 const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', description: 'See delivery health at a glance.', icon: Gauge },
   { id: 'clients', label: 'Clients', description: 'Manage client information.', icon: Users },
   { id: 'projects', label: 'Projects', description: 'Track delivery projects.', icon: FolderKanban },
   { id: 'sites', label: 'Sites', description: 'Maintain site and network data.', icon: Network },
   { id: 'raid', label: 'RAID Log', description: 'Track risks and dependencies.', icon: ClipboardList },
+  { id: 'scheduler', label: 'Scheduler', description: 'Manage milestones and due dates.', icon: ClipboardList },
   { id: 'documents', label: 'Documents', description: 'Organise project documents.', icon: FileText },
 ]
 
@@ -112,6 +125,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [sites, setSites] = useState<SiteRecord[]>([])
   const [raidItems, setRaidItems] = useState<RaidItemRecord[]>([])
+  const [milestones, setMilestones] = useState<MilestoneRecord[]>([])
   const active = modules.find((module) => module.id === activeModule) ?? modules[0]
   const ActiveIcon = active.icon
 
@@ -147,11 +161,20 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
     }
   }
 
+  const loadMilestones = async () => {
+    const response = await fetch('/api/milestones', { headers: { Authorization: `Bearer ${token}` } })
+    if (response.ok) {
+      const data = (await response.json()) as MilestoneRecord[]
+      setMilestones(data)
+    }
+  }
+
   useEffect(() => {
     void loadClients()
     void loadProjects()
     void loadSites()
     void loadRaidItems()
+    void loadMilestones()
   }, [token])
 
   return (
@@ -188,7 +211,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
         </header>
         <div className="content">
           <section className="welcome-row"><div><p className="eyebrow">SD-WAN project delivery</p><h2>{active.label}</h2><p className="muted">{active.description}</p></div><button className="primary-button"><BarChart3 size={17} /> View pilot overview</button></section>
-          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
+          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} milestones={milestones} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : activeModule === 'scheduler' ? <SchedulerWorkspace token={token} clients={clients} projects={projects} milestones={milestones} onMilestonesChanged={loadMilestones} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
         </div>
       </main>
     </div>
@@ -220,7 +243,7 @@ function Login({ onLogin }: { onLogin: (token: string, email: string) => void })
   return <main className="login-page"><section className="login-panel"><div className="brand-mark"><Activity size={19} /></div><p className="eyebrow">Internal department workspace</p><h1>SD-WAN Delivery Hub</h1><p className="muted">Sign in to manage project delivery information.</p><form onSubmit={submit}><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="username" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="current-password" /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button login-button" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button></form></section></main>
 }
 
-function Dashboard({ clients, projects, sites, raidItems }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[]; raidItems: RaidItemRecord[] }) {
+function Dashboard({ clients, projects, sites, raidItems, milestones }: { clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[]; raidItems: RaidItemRecord[]; milestones: MilestoneRecord[] }) {
   const clientPortfolio = clients.map((client) => ({
     client,
     projectsForClient: projects.filter((project) => project.client_id === client.id),
@@ -232,7 +255,7 @@ function Dashboard({ clients, projects, sites, raidItems }: { clients: ClientRec
       <Metric label="Active clients" value={String(clients.length)} detail={clients.length === 1 ? 'Client tracked' : 'Clients tracked'} />
       <Metric label="Active projects" value={String(projects.length)} detail={projects.length === 1 ? 'Project in flight' : 'Projects in flight'} />
       <Metric label="Sites in scope" value={String(sites.length)} detail={sites.length === 1 ? 'Site recorded' : 'Sites recorded'} />
-      <Metric label="Open RAID items" value={String(raidItems.filter((item) => item.status === 'open').length)} detail="Risks, actions and dependencies" accent />
+      <Metric label="Upcoming milestones" value={String(milestones.filter((milestone) => milestone.status !== 'completed').length)} detail="Planned delivery checkpoints" accent />
     </section>
     <section className="dashboard-grid">
       <div className="panel panel-large"><div className="panel-heading"><div><h3>Portfolio by client</h3><p className="muted">Projects grouped under each client account.</p></div><span className="panel-label">Hierarchy</span></div>
@@ -316,6 +339,45 @@ function RaidWorkspace({ token, clients, projects, raidItems, onRaidChanged }: {
   </section>
     <section className="panel"><div className="panel-heading"><div><h3>Add RAID item</h3><p className="muted">Capture an item before it becomes a delivery surprise.</p></div><span className="panel-label"><Plus size={14} /></span></div>
       <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Type<select value={form.item_type} onChange={(event) => setForm({ ...form, item_type: event.target.value })}><option value="risk">Risk</option><option value="action">Action</option><option value="issue">Issue</option><option value="dependency">Dependency</option></select></label><label>Title<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="open">Open</option><option value="in_progress">In progress</option><option value="closed">Closed</option></select></label><label>Priority<select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Owner<input value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} /></label><label>Due date<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save RAID item'}</button></form>
+    </section>
+  </div>
+}
+
+function SchedulerWorkspace({ token, clients, projects, milestones, onMilestonesChanged }: { token: string; clients: ClientRecord[]; projects: ProjectRecord[]; milestones: MilestoneRecord[]; onMilestonesChanged: () => Promise<void> }) {
+  const [form, setForm] = useState({ project_id: '', name: '', description: '', status: 'planned', owner: '', due_date: '' })
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    try {
+      const response = await fetch('/api/milestones', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...form, project_id: Number(form.project_id), description: form.description || null, owner: form.owner || null, due_date: form.due_date ? new Date(form.due_date).toISOString() : null }) })
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({ detail: 'Unable to create milestone' }))) as { detail?: string }
+        throw new Error(payload.detail ?? 'Unable to create milestone')
+      }
+      setForm({ project_id: '', name: '', description: '', status: 'planned', owner: '', due_date: '' })
+      await onMilestonesChanged()
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Unable to create milestone')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const projectDetails = projects.map((project) => ({
+    project,
+    client: clients.find((client) => client.id === project.client_id),
+    milestonesForProject: milestones.filter((milestone) => milestone.project_id === project.id),
+  }))
+
+  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Delivery milestones</h3><p className="muted">Schedule checkpoints grouped by client and project.</p></div><span className="panel-label">{milestones.length} total</span></div>
+    {projects.length === 0 ? <div className="empty-state compact"><FolderKanban size={29} /><span>No projects available</span></div> : <div className="hierarchy-stack">{projectDetails.map(({ project, client, milestonesForProject }) => <div key={project.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{client?.name ?? 'Unknown client'}</strong><span>{project.name} · {project.project_code}</span></div><span className="muted-tag">{milestonesForProject.length} milestones</span></div>{milestonesForProject.length === 0 ? <p className="muted">No milestones linked to this project yet.</p> : <div className="nested-list">{milestonesForProject.map((milestone) => <div key={milestone.id} className="nested-item"><div><strong>{milestone.name}</strong><span>{milestone.owner ? `Owner: ${milestone.owner}` : 'No owner'}{milestone.due_date ? ` · due ${new Date(milestone.due_date).toLocaleDateString()}` : ''}</span></div><span className={`status-badge ${milestone.status}`}>{milestone.status}</span></div>)}</div>}</div>)}</div>}
+  </section>
+    <section className="panel"><div className="panel-heading"><div><h3>Add milestone</h3><p className="muted">Create a dated checkpoint for a project.</p></div><span className="panel-label"><Plus size={14} /></span></div>
+      <form className="form-grid" onSubmit={submit}><label>Project<select value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Milestone name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="delayed">Delayed</option></select></label><label>Owner<input value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} /></label><label>Due date<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label><label>Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save milestone'}</button></form>
     </section>
   </div>
 }

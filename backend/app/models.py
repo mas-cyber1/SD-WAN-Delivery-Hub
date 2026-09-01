@@ -17,6 +17,7 @@ class Tenant(Base):
     projects: Mapped[list["Project"]] = relationship(back_populates="tenant")
     sites: Mapped[list["Site"]] = relationship(back_populates="tenant")
     raid_items: Mapped[list["RaidItem"]] = relationship(back_populates="tenant")
+    milestones: Mapped[list["Milestone"]] = relationship(back_populates="tenant")
 
 
 class User(Base):
@@ -65,6 +66,7 @@ class Project(Base):
     client: Mapped[Client] = relationship(back_populates="projects")
     sites: Mapped[list["Site"]] = relationship(back_populates="project")
     raid_items: Mapped[list["RaidItem"]] = relationship(back_populates="project")
+    milestones: Mapped[list["Milestone"]] = relationship(back_populates="project")
 
 
 class Site(Base):
@@ -101,3 +103,20 @@ class RaidItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tenant: Mapped[Tenant] = relationship(back_populates="raid_items")
     project: Mapped[Project] = relationship(back_populates="raid_items")
+
+
+class Milestone(Base):
+    __tablename__ = "milestones"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    owner: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship(back_populates="milestones")
+    project: Mapped[Project] = relationship(back_populates="milestones")

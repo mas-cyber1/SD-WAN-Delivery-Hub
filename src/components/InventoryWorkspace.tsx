@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useState } from 'react'
 
 type Client = { id: number; name: string; client_code: string }
 type Project = { id: number; client_id: number; name: string; project_code: string }
@@ -9,148 +9,282 @@ type Network = { id: number; site_id: number; name: string; cidr: string; gatewa
 type Vlan = { id: number; site_id: number; vlan_id: number; name: string; subnet: string | null; gateway: string | null; status: string }
 type NetworkInterface = { id: number; site_id: number; device_id: number; name: string; interface_role: string; ip_address: string | null; connected_to: string | null; status: string }
 type Props = { token: string; clients: Client[]; projects: Project[]; sites: Site[]; devices: Device[]; circuits: Circuit[]; networks: Network[]; vlans: Vlan[]; interfaces: NetworkInterface[]; onInventoryChanged: () => Promise<void> }
-type EditState = { type: 'device' | 'circuit' | 'network' | 'vlan' | 'interface'; id: number } | null
-type EditableRecord = { id: number; status: string; [key: string]: unknown }
 
-const endpointByType = { device: 'devices', circuit: 'circuits', network: 'networks', vlan: 'vlans', interface: 'interfaces' } as const
+async function postInventory(token: string, path: string, body: Record<string, unknown>): Promise<string | null> {
+  const response = await fetch(`/api/inventory/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
+  if (response.ok) return null
+  const payload = (await response.json().catch(() => ({ detail: 'Request failed' }))) as { detail?: string }
+  return payload.detail ?? 'Request failed'
+}
+
+async function patchInventory(token: string, path: string, id: number, body: Record<string, unknown>): Promise<string | null> {
+  const response = await fetch(`/api/inventory/${path}/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
+  if (response.ok) return null
+  const payload = (await response.json().catch(() => ({ detail: 'Request failed' }))) as { detail?: string }
+  return payload.detail ?? 'Request failed'
+}
 
 function InventoryWorkspace({ token, clients, projects, sites, devices, circuits, networks, vlans, interfaces, onInventoryChanged }: Props) {
-  const [editing, setEditing] = useState<EditState>(null)
-  const [error, setError] = useState('')
+  const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null)
+  const [expandedDeviceId, setExpandedDeviceId] = useState<number | null>(null)
 
-  async function save(type: NonNullable<EditState>['type'], id: number, values: Record<string, unknown>) {
-    setError('')
-    const response = await fetch(`/api/inventory/${endpointByType[type]}/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(values) })
-    if (!response.ok) { setError(`Unable to update ${type}`); return }
-    setEditing(null)
-    await onInventoryChanged()
+  const selectedSite = sites.find((site) => site.id === selectedSiteId) ?? null
+  const selectedProject = selectedSite ? projects.find((project) => project.id === selectedSite.project_id) ?? null : null
+  const selectedClient = selectedProject ? clients.find((client) => client.id === selectedProject.client_id) ?? null : null
+
+  function selectSite(id: number) {
+    setSelectedSiteId(id)
+    setExpandedDeviceId(null)
   }
 
   return <div className="workspace-grid">
-    <section className="panel workflow-register">
-      <div className="panel-heading"><div><h3>Inventory by site</h3><p className="muted">Client Project Site network inventory. Edit any existing record to correct its data.</p></div><span className="panel-label">{devices.length + circuits.length + networks.length + vlans.length + interfaces.length} total</span></div>
-      {error && <p className="form-error">{error}</p>}
+    <section className="panel">
+      <div className="panel-heading"><div><h3>Sites</h3><p className="muted">Select a site, then manage its devices, circuits, networks, and VLANs in one place.</p></div></div>
       {clients.length === 0 ? <div className="empty-state compact"><span>No clients available</span></div> : <div className="hierarchy-stack">
         {clients.map((client) => <div key={client.id} className="hierarchy-card">
-          <div className="hierarchy-header"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">Client</span></div>
+          <div className="hierarchy-header"><div><strong>{client.name}</strong><span>{client.client_code}</span></div></div>
           {projects.filter((project) => project.client_id === client.id).map((project) => <div key={project.id} className="nested-project">
-            <div className="hierarchy-header"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className="muted-tag">Project</span></div>
-            {sites.filter((site) => site.project_id === project.id).map((site) => <div key={site.id} className="inventory-site">
-              <div className="hierarchy-header"><div><strong>{site.name}</strong><span>{site.site_code}</span></div><span className="muted-tag">Site</span></div>
-              <div className="data-table">
-                {devices.filter((item) => item.site_id === site.id).map((item) => <InventoryRow key={`device-${item.id}`} label={item.hostname} detail={`${item.role}${item.management_ip ? ` - ${item.management_ip}` : ''}`} status={item.status} onEdit={() => setEditing({ type: 'device', id: item.id })} />)}
-                {circuits.filter((item) => item.site_id === site.id).map((item) => <InventoryRow key={`circuit-${item.id}`} label={item.name} detail={`${item.provider} - ${item.role}${item.bandwidth_mbps ? ` - ${item.bandwidth_mbps} Mbps` : ''}`} status={item.status} onEdit={() => setEditing({ type: 'circuit', id: item.id })} />)}
-                {networks.filter((item) => item.site_id === site.id).map((item) => <InventoryRow key={`network-${item.id}`} label={item.name} detail={`${item.network_type} - ${item.cidr}`} status={item.status} onEdit={() => setEditing({ type: 'network', id: item.id })} />)}
-                {vlans.filter((item) => item.site_id === site.id).map((item) => <InventoryRow key={`vlan-${item.id}`} label={`VLAN ${item.vlan_id} - ${item.name}`} detail={item.subnet ?? 'No subnet'} status={item.status} onEdit={() => setEditing({ type: 'vlan', id: item.id })} />)}
-                {interfaces.filter((item) => item.site_id === site.id).map((item) => <InventoryRow key={`interface-${item.id}`} label={item.name} detail={`${item.interface_role}${item.ip_address ? ` - ${item.ip_address}` : ''}`} status={item.status} onEdit={() => setEditing({ type: 'interface', id: item.id })} />)}
-              </div>
-            </div>)}
+            <div className="hierarchy-header"><div><strong>{project.name}</strong><span>{project.project_code}</span></div></div>
+            <div className="site-picker-list">
+              {sites.filter((site) => site.project_id === project.id).length === 0 ? <p className="muted">No sites yet.</p> : sites.filter((site) => site.project_id === project.id).map((site) => <button key={site.id} type="button" className={`site-picker-item ${selectedSiteId === site.id ? 'selected' : ''}`} onClick={() => selectSite(site.id)}>
+                <span>{site.name}</span><span className="muted-tag">{site.site_code}</span>
+              </button>)}
+            </div>
           </div>)}
         </div>)}
       </div>}
     </section>
-    <InventoryEditor editing={editing} devices={devices} circuits={circuits} networks={networks} vlans={vlans} interfaces={interfaces} onCancel={() => setEditing(null)} onSave={save} />
-    <InventoryAddForms token={token} sites={sites} devices={devices} onInventoryChanged={onInventoryChanged} />
+    <section className="panel workflow-register">
+      {!selectedSite ? <div className="empty-state compact"><span>Select a site on the left to manage its inventory.</span></div> : <div>
+        <div className="panel-heading"><div><p className="eyebrow">{selectedClient?.name ?? 'Unknown client'} / {selectedProject?.name ?? 'Unknown project'}</p><h3>{selectedSite.name}</h3><p className="muted">{selectedSite.site_code}</p></div></div>
+        <DeviceSection
+          token={token}
+          site={selectedSite}
+          devices={devices.filter((device) => device.site_id === selectedSite.id)}
+          interfaces={interfaces}
+          expandedDeviceId={expandedDeviceId}
+          onExpandDevice={(id) => setExpandedDeviceId((current) => (current === id ? null : id))}
+          onInventoryChanged={onInventoryChanged}
+        />
+        <CircuitSection token={token} site={selectedSite} circuits={circuits.filter((circuit) => circuit.site_id === selectedSite.id)} onInventoryChanged={onInventoryChanged} />
+        <NetworkSection token={token} site={selectedSite} networks={networks.filter((network) => network.site_id === selectedSite.id)} onInventoryChanged={onInventoryChanged} />
+        <VlanSection token={token} site={selectedSite} vlans={vlans.filter((vlan) => vlan.site_id === selectedSite.id)} onInventoryChanged={onInventoryChanged} />
+      </div>}
+    </section>
   </div>
 }
 
-function InventoryRow({ label, detail, status, onEdit }: { label: string; detail: string; status: string; onEdit: () => void }) {
-  return <div className="table-row"><div><strong>{label}</strong><span>{detail}</span></div><div className="project-meta"><span className={`status-badge ${status}`}>{status}</span><button className="filter-button" onClick={onEdit}>Edit</button></div></div>
+function SectionHeader({ title, count, showForm, onToggle }: { title: string; count: number; showForm: boolean; onToggle: () => void }) {
+  return <div className="section-header"><h4>{title} ({count})</h4><button type="button" className="filter-button" onClick={onToggle}>{showForm ? 'Close' : '+ Add'}</button></div>
 }
 
-function InventoryEditor({ editing, devices, circuits, networks, vlans, interfaces, onCancel, onSave }: { editing: EditState; devices: Device[]; circuits: Circuit[]; networks: Network[]; vlans: Vlan[]; interfaces: NetworkInterface[]; onCancel: () => void; onSave: (type: NonNullable<EditState>['type'], id: number, values: Record<string, unknown>) => Promise<void> }) {
-  const [values, setValues] = useState<Record<string, string>>({})
-  useEffect(() => {
-    if (!editing) { setValues({}); return }
-    const records: Record<NonNullable<EditState>['type'], EditableRecord[]> = { device: devices, circuit: circuits, network: networks, vlan: vlans, interface: interfaces }
-    const record = records[editing.type].find((item) => item.id === editing.id)
-    if (!record) return
-    const fields = editing.type === 'device' ? ['hostname', 'role', 'vendor', 'model', 'management_ip', 'status'] : editing.type === 'circuit' ? ['name', 'provider', 'circuit_type', 'role', 'bandwidth_mbps', 'public_ip', 'status'] : editing.type === 'network' ? ['name', 'cidr', 'gateway', 'network_type', 'status'] : editing.type === 'vlan' ? ['vlan_id', 'name', 'subnet', 'gateway', 'status'] : ['name', 'interface_role', 'ip_address', 'connected_to', 'status']
-    setValues(Object.fromEntries(fields.map((field) => [field, record[field] == null ? '' : String(record[field])])))
-  }, [editing, devices, circuits, networks, vlans, interfaces])
-  if (!editing) return <section className="panel"><div className="panel-heading"><div><h3>Inventory editor</h3><p className="muted">Select Edit on any inventory record to correct its details.</p></div></div><div className="empty-state compact"><span>No record selected</span></div></section>
-  const fields = Object.keys(values)
-  return <section className="panel"><div className="panel-heading"><div><h3>Edit {editing.type}</h3><p className="muted">Update the record without changing its site relationship.</p></div></div><form className="form-grid" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const payload: Record<string, unknown> = { ...values }; if (editing.type === 'circuit' && values.bandwidth_mbps) payload.bandwidth_mbps = Number(values.bandwidth_mbps); if (editing.type === 'vlan') payload.vlan_id = Number(values.vlan_id); void onSave(editing.type, editing.id, payload) }}>{fields.map((field) => <label key={field}>{field.replaceAll('_', ' ')}<input value={values[field]} onChange={(event) => setValues({ ...values, [field]: event.target.value })} /></label>)}<div className="edit-actions"><button className="primary-button">Save changes</button><button type="button" className="filter-button" onClick={onCancel}>Cancel</button></div></form></section>
-}
-
-function InventoryAddForms({ token, sites, devices, onInventoryChanged }: { token: string; sites: Site[]; devices: Device[]; onInventoryChanged: () => Promise<void> }) {
-  const [deviceForm, setDeviceForm] = useState({ site_id: '', hostname: '', role: 'sdwan_edge', vendor: '', model: '', management_ip: '', status: 'planned', description: '' })
-  const [circuitForm, setCircuitForm] = useState({ site_id: '', name: '', provider: '', circuit_type: 'internet', role: 'primary', bandwidth_mbps: '', public_ip: '', status: 'planned', description: '' })
-  const [networkForm, setNetworkForm] = useState({ site_id: '', name: '', cidr: '', gateway: '', network_type: 'lan', status: 'planned' })
-  const [vlanForm, setVlanForm] = useState({ site_id: '', vlan_id: '', name: '', subnet: '', gateway: '', status: 'planned' })
-  const [interfaceForm, setInterfaceForm] = useState({ site_id: '', device_id: '', name: '', interface_role: 'lan', ip_address: '', connected_to: '', status: 'planned' })
+function DeviceSection({ token, site, devices, interfaces, expandedDeviceId, onExpandDevice, onInventoryChanged }: { token: string; site: Site; devices: Device[]; interfaces: NetworkInterface[]; expandedDeviceId: number | null; onExpandDevice: (id: number) => void; onInventoryChanged: () => Promise<void> }) {
+  const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ hostname: '', role: 'sdwan_edge', vendor: '', model: '', management_ip: '', status: 'planned' })
 
-  async function post(path: string, body: Record<string, unknown>, onSuccess: () => void, failMessage: string) {
-    setError(''); setSubmitting(true)
-    try {
-      const response = await fetch(`/api/inventory/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
-      if (!response.ok) throw new Error(failMessage)
-      onSuccess()
-      await onInventoryChanged()
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : failMessage)
-    } finally {
-      setSubmitting(false)
-    }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await postInventory(token, 'devices', { ...form, site_id: site.id, vendor: form.vendor || null, model: form.model || null, management_ip: form.management_ip || null })
+    if (failure) { setError(failure); setSubmitting(false); return }
+    setForm({ hostname: '', role: 'sdwan_edge', vendor: '', model: '', management_ip: '', status: 'planned' })
+    setShowForm(false)
+    setSubmitting(false)
+    await onInventoryChanged()
   }
 
-  return <section className="panel"><div className="panel-heading"><div><h3>Add inventory</h3><p className="muted">Capture the facts used later for diagrams and LLDs.</p></div></div>
-    {error && <p className="form-error">{error}</p>}
-    <form className="form-grid" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void post('devices', { ...deviceForm, site_id: Number(deviceForm.site_id), vendor: deviceForm.vendor || null, model: deviceForm.model || null, management_ip: deviceForm.management_ip || null, description: deviceForm.description || null }, () => setDeviceForm({ site_id: '', hostname: '', role: 'sdwan_edge', vendor: '', model: '', management_ip: '', status: 'planned', description: '' }), 'Unable to create device') }}>
-      <h4>New device</h4>
-      <label>Site<select value={deviceForm.site_id} onChange={(event) => setDeviceForm({ ...deviceForm, site_id: event.target.value })} required><option value="">Select site</option>{sites.map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label>
-      <label>Hostname<input value={deviceForm.hostname} onChange={(event) => setDeviceForm({ ...deviceForm, hostname: event.target.value })} required /></label>
-      <label>Role<select value={deviceForm.role} onChange={(event) => setDeviceForm({ ...deviceForm, role: event.target.value })}><option value="sdwan_edge">SD-WAN edge</option><option value="firewall">Firewall</option><option value="core_switch">Core switch</option><option value="access_switch">Access switch</option><option value="controller">Controller</option></select></label>
-      <label>Vendor<input value={deviceForm.vendor} onChange={(event) => setDeviceForm({ ...deviceForm, vendor: event.target.value })} /></label>
-      <label>Model<input value={deviceForm.model} onChange={(event) => setDeviceForm({ ...deviceForm, model: event.target.value })} /></label>
-      <label>Management IP<input value={deviceForm.management_ip} onChange={(event) => setDeviceForm({ ...deviceForm, management_ip: event.target.value })} /></label>
-      <label>Status<select value={deviceForm.status} onChange={(event) => setDeviceForm({ ...deviceForm, status: event.target.value })}><option value="planned">Planned</option><option value="ordered">Ordered</option><option value="staged">Staged</option><option value="deployed">Deployed</option></select></label>
-      <label>Description<textarea value={deviceForm.description} onChange={(event) => setDeviceForm({ ...deviceForm, description: event.target.value })} rows={2} /></label>
+  return <div className="inventory-section">
+    <SectionHeader title="Devices" count={devices.length} showForm={showForm} onToggle={() => setShowForm(!showForm)} />
+    {showForm && <form className="form-grid compact-form" onSubmit={submit}>
+      <label>Hostname<input value={form.hostname} onChange={(event) => setForm({ ...form, hostname: event.target.value })} required /></label>
+      <label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}><option value="sdwan_edge">SD-WAN edge</option><option value="firewall">Firewall</option><option value="core_switch">Core switch</option><option value="access_switch">Access switch</option><option value="controller">Controller</option></select></label>
+      <label>Vendor<input value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} /></label>
+      <label>Model<input value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} /></label>
+      <label>Management IP<input value={form.management_ip} onChange={(event) => setForm({ ...form, management_ip: event.target.value })} /></label>
+      <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="ordered">Ordered</option><option value="staged">Staged</option><option value="deployed">Deployed</option></select></label>
+      {error && <p className="form-error">{error}</p>}
       <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save device'}</button>
-    </form>
-    <form className="form-grid workflow-form-divider" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void post('circuits', { ...circuitForm, site_id: Number(circuitForm.site_id), bandwidth_mbps: circuitForm.bandwidth_mbps ? Number(circuitForm.bandwidth_mbps) : null, public_ip: circuitForm.public_ip || null, description: circuitForm.description || null }, () => setCircuitForm({ site_id: '', name: '', provider: '', circuit_type: 'internet', role: 'primary', bandwidth_mbps: '', public_ip: '', status: 'planned', description: '' }), 'Unable to create WAN circuit') }}>
-      <h4>New WAN circuit</h4>
-      <label>Site<select value={circuitForm.site_id} onChange={(event) => setCircuitForm({ ...circuitForm, site_id: event.target.value })} required><option value="">Select site</option>{sites.map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label>
-      <label>Circuit name<input value={circuitForm.name} onChange={(event) => setCircuitForm({ ...circuitForm, name: event.target.value })} required /></label>
-      <label>Provider<input value={circuitForm.provider} onChange={(event) => setCircuitForm({ ...circuitForm, provider: event.target.value })} required /></label>
-      <label>Type<select value={circuitForm.circuit_type} onChange={(event) => setCircuitForm({ ...circuitForm, circuit_type: event.target.value })}><option value="internet">Internet</option><option value="mpls">MPLS</option><option value="private_ethernet">Private Ethernet</option><option value="lte_5g">LTE / 5G</option></select></label>
-      <label>Role<select value={circuitForm.role} onChange={(event) => setCircuitForm({ ...circuitForm, role: event.target.value })}><option value="primary">Primary</option><option value="backup">Backup</option><option value="tertiary">Tertiary</option></select></label>
-      <label>Bandwidth (Mbps)<input type="number" min={0} value={circuitForm.bandwidth_mbps} onChange={(event) => setCircuitForm({ ...circuitForm, bandwidth_mbps: event.target.value })} /></label>
-      <label>Public IP<input value={circuitForm.public_ip} onChange={(event) => setCircuitForm({ ...circuitForm, public_ip: event.target.value })} /></label>
-      <label>Status<select value={circuitForm.status} onChange={(event) => setCircuitForm({ ...circuitForm, status: event.target.value })}><option value="planned">Planned</option><option value="ordered">Ordered</option><option value="provisioning">Provisioning</option><option value="live">Live</option></select></label>
+    </form>}
+    {devices.length === 0 ? <p className="muted">No devices added to this site yet.</p> : <div className="data-table">
+      {devices.map((device) => <DeviceRow key={device.id} token={token} site={site} device={device} interfaces={interfaces.filter((item) => item.device_id === device.id)} expanded={expandedDeviceId === device.id} onExpand={() => onExpandDevice(device.id)} onInventoryChanged={onInventoryChanged} />)}
+    </div>}
+  </div>
+}
+
+function DeviceRow({ token, site, device, interfaces, expanded, onExpand, onInventoryChanged }: { token: string; site: Site; device: Device; interfaces: NetworkInterface[]; expanded: boolean; onExpand: () => void; onInventoryChanged: () => Promise<void> }) {
+  const [editingDevice, setEditingDevice] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ hostname: device.hostname, role: device.role, vendor: device.vendor ?? '', model: device.model ?? '', management_ip: device.management_ip ?? '', status: device.status })
+  const [showInterfaceForm, setShowInterfaceForm] = useState(false)
+  const [interfaceError, setInterfaceError] = useState('')
+  const [interfaceSubmitting, setInterfaceSubmitting] = useState(false)
+  const [interfaceForm, setInterfaceForm] = useState({ name: '', interface_role: 'lan', ip_address: '', connected_to: '', status: 'planned' })
+
+  async function saveDevice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await patchInventory(token, 'devices', device.id, { ...form, vendor: form.vendor || null, model: form.model || null, management_ip: form.management_ip || null })
+    setSubmitting(false)
+    if (failure) { setError(failure); return }
+    setEditingDevice(false)
+    await onInventoryChanged()
+  }
+
+  async function saveInterface(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setInterfaceError('')
+    setInterfaceSubmitting(true)
+    const failure = await postInventory(token, 'interfaces', { ...interfaceForm, site_id: site.id, device_id: device.id, ip_address: interfaceForm.ip_address || null, connected_to: interfaceForm.connected_to || null })
+    setInterfaceSubmitting(false)
+    if (failure) { setInterfaceError(failure); return }
+    setInterfaceForm({ name: '', interface_role: 'lan', ip_address: '', connected_to: '', status: 'planned' })
+    setShowInterfaceForm(false)
+    await onInventoryChanged()
+  }
+
+  return <div className="device-card">
+    <div className="table-row">
+      <div><strong>{device.hostname}</strong><span>{device.role}{device.management_ip ? ` - ${device.management_ip}` : ''}</span></div>
+      <div className="project-meta"><span className={`status-badge ${device.status}`}>{device.status}</span><button type="button" className="filter-button" onClick={onExpand}>{expanded ? 'Collapse' : 'Manage'}</button></div>
+    </div>
+    {expanded && <div className="device-detail">
+      <div className="device-detail-actions"><button type="button" className="filter-button" onClick={() => setEditingDevice(!editingDevice)}>{editingDevice ? 'Cancel edit' : 'Edit device details'}</button></div>
+      {editingDevice && <form className="form-grid compact-form" onSubmit={saveDevice}>
+        <label>Hostname<input value={form.hostname} onChange={(event) => setForm({ ...form, hostname: event.target.value })} required /></label>
+        <label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}><option value="sdwan_edge">SD-WAN edge</option><option value="firewall">Firewall</option><option value="core_switch">Core switch</option><option value="access_switch">Access switch</option><option value="controller">Controller</option></select></label>
+        <label>Vendor<input value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} /></label>
+        <label>Model<input value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} /></label>
+        <label>Management IP<input value={form.management_ip} onChange={(event) => setForm({ ...form, management_ip: event.target.value })} /></label>
+        <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="ordered">Ordered</option><option value="staged">Staged</option><option value="deployed">Deployed</option></select></label>
+        {error && <p className="form-error">{error}</p>}
+        <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save changes'}</button>
+      </form>}
+      <div className="section-header compact"><h4>Interfaces ({interfaces.length})</h4><button type="button" className="filter-button" onClick={() => setShowInterfaceForm(!showInterfaceForm)}>{showInterfaceForm ? 'Close' : '+ Add interface'}</button></div>
+      {showInterfaceForm && <form className="form-grid compact-form" onSubmit={saveInterface}>
+        <label>Interface<input placeholder="ge-0/0/0" value={interfaceForm.name} onChange={(event) => setInterfaceForm({ ...interfaceForm, name: event.target.value })} required /></label>
+        <label>Role<select value={interfaceForm.interface_role} onChange={(event) => setInterfaceForm({ ...interfaceForm, interface_role: event.target.value })}><option value="lan">LAN</option><option value="wan">WAN</option><option value="management">Management</option><option value="loopback">Loopback</option></select></label>
+        <label>IP address<input value={interfaceForm.ip_address} onChange={(event) => setInterfaceForm({ ...interfaceForm, ip_address: event.target.value })} /></label>
+        <label>Connected to<input value={interfaceForm.connected_to} onChange={(event) => setInterfaceForm({ ...interfaceForm, connected_to: event.target.value })} /></label>
+        <label>Status<select value={interfaceForm.status} onChange={(event) => setInterfaceForm({ ...interfaceForm, status: event.target.value })}><option value="planned">Planned</option><option value="active">Active</option><option value="retired">Retired</option></select></label>
+        {interfaceError && <p className="form-error">{interfaceError}</p>}
+        <button className="primary-button" disabled={interfaceSubmitting}>{interfaceSubmitting ? 'Saving...' : 'Save interface'}</button>
+      </form>}
+      {interfaces.length === 0 ? <p className="muted">No interfaces recorded for this device yet.</p> : <div className="data-table">
+        {interfaces.map((item) => <div key={item.id} className="table-row"><div><strong>{item.name}</strong><span>{item.interface_role}{item.ip_address ? ` - ${item.ip_address}` : ''}{item.connected_to ? ` - to ${item.connected_to}` : ''}</span></div><span className={`status-badge ${item.status}`}>{item.status}</span></div>)}
+      </div>}
+    </div>}
+  </div>
+}
+
+function CircuitSection({ token, site, circuits, onInventoryChanged }: { token: string; site: Site; circuits: Circuit[]; onInventoryChanged: () => Promise<void> }) {
+  const [showForm, setShowForm] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: '', provider: '', circuit_type: 'internet', role: 'primary', bandwidth_mbps: '', public_ip: '', status: 'planned' })
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await postInventory(token, 'circuits', { ...form, site_id: site.id, bandwidth_mbps: form.bandwidth_mbps ? Number(form.bandwidth_mbps) : null, public_ip: form.public_ip || null })
+    if (failure) { setError(failure); setSubmitting(false); return }
+    setForm({ name: '', provider: '', circuit_type: 'internet', role: 'primary', bandwidth_mbps: '', public_ip: '', status: 'planned' })
+    setShowForm(false)
+    setSubmitting(false)
+    await onInventoryChanged()
+  }
+
+  return <div className="inventory-section">
+    <SectionHeader title="WAN circuits" count={circuits.length} showForm={showForm} onToggle={() => setShowForm(!showForm)} />
+    {showForm && <form className="form-grid compact-form" onSubmit={submit}>
+      <label>Circuit name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+      <label>Provider<input value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value })} required /></label>
+      <label>Type<select value={form.circuit_type} onChange={(event) => setForm({ ...form, circuit_type: event.target.value })}><option value="internet">Internet</option><option value="mpls">MPLS</option><option value="private_ethernet">Private Ethernet</option><option value="lte_5g">LTE / 5G</option></select></label>
+      <label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}><option value="primary">Primary</option><option value="backup">Backup</option><option value="tertiary">Tertiary</option></select></label>
+      <label>Bandwidth (Mbps)<input type="number" min={0} value={form.bandwidth_mbps} onChange={(event) => setForm({ ...form, bandwidth_mbps: event.target.value })} /></label>
+      <label>Public IP<input value={form.public_ip} onChange={(event) => setForm({ ...form, public_ip: event.target.value })} /></label>
+      <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="ordered">Ordered</option><option value="provisioning">Provisioning</option><option value="live">Live</option></select></label>
+      {error && <p className="form-error">{error}</p>}
       <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save circuit'}</button>
-    </form>
-    <form className="form-grid workflow-form-divider" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void post('networks', { ...networkForm, site_id: Number(networkForm.site_id), gateway: networkForm.gateway || null }, () => setNetworkForm({ site_id: '', name: '', cidr: '', gateway: '', network_type: 'lan', status: 'planned' }), 'Unable to create IP network') }}>
-      <h4>New IP network</h4>
-      <label>Site<select value={networkForm.site_id} onChange={(event) => setNetworkForm({ ...networkForm, site_id: event.target.value })} required><option value="">Select site</option>{sites.map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label>
-      <label>Name<input value={networkForm.name} onChange={(event) => setNetworkForm({ ...networkForm, name: event.target.value })} required /></label>
-      <label>CIDR<input placeholder="10.10.0.0/24" value={networkForm.cidr} onChange={(event) => setNetworkForm({ ...networkForm, cidr: event.target.value })} required /></label>
-      <label>Gateway<input value={networkForm.gateway} onChange={(event) => setNetworkForm({ ...networkForm, gateway: event.target.value })} /></label>
-      <label>Type<select value={networkForm.network_type} onChange={(event) => setNetworkForm({ ...networkForm, network_type: event.target.value })}><option value="lan">LAN</option><option value="wan">WAN</option><option value="management">Management</option><option value="loopback">Loopback</option></select></label>
+    </form>}
+    {circuits.length === 0 ? <p className="muted">No WAN circuits added to this site yet.</p> : <div className="data-table">
+      {circuits.map((circuit) => <div key={circuit.id} className="table-row"><div><strong>{circuit.name}</strong><span>{circuit.provider} - {circuit.role}{circuit.bandwidth_mbps ? ` - ${circuit.bandwidth_mbps} Mbps` : ''}</span></div><span className={`status-badge ${circuit.status}`}>{circuit.status}</span></div>)}
+    </div>}
+  </div>
+}
+
+function NetworkSection({ token, site, networks, onInventoryChanged }: { token: string; site: Site; networks: Network[]; onInventoryChanged: () => Promise<void> }) {
+  const [showForm, setShowForm] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: '', cidr: '', gateway: '', network_type: 'lan', status: 'planned' })
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await postInventory(token, 'networks', { ...form, site_id: site.id, gateway: form.gateway || null })
+    if (failure) { setError(failure); setSubmitting(false); return }
+    setForm({ name: '', cidr: '', gateway: '', network_type: 'lan', status: 'planned' })
+    setShowForm(false)
+    setSubmitting(false)
+    await onInventoryChanged()
+  }
+
+  return <div className="inventory-section">
+    <SectionHeader title="IP networks" count={networks.length} showForm={showForm} onToggle={() => setShowForm(!showForm)} />
+    {showForm && <form className="form-grid compact-form" onSubmit={submit}>
+      <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+      <label>CIDR<input placeholder="10.10.0.0/24" value={form.cidr} onChange={(event) => setForm({ ...form, cidr: event.target.value })} required /></label>
+      <label>Gateway<input value={form.gateway} onChange={(event) => setForm({ ...form, gateway: event.target.value })} /></label>
+      <label>Type<select value={form.network_type} onChange={(event) => setForm({ ...form, network_type: event.target.value })}><option value="lan">LAN</option><option value="wan">WAN</option><option value="management">Management</option><option value="loopback">Loopback</option></select></label>
+      {error && <p className="form-error">{error}</p>}
       <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save network'}</button>
-    </form>
-    <form className="form-grid workflow-form-divider" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void post('vlans', { ...vlanForm, site_id: Number(vlanForm.site_id), vlan_id: Number(vlanForm.vlan_id), subnet: vlanForm.subnet || null, gateway: vlanForm.gateway || null }, () => setVlanForm({ site_id: '', vlan_id: '', name: '', subnet: '', gateway: '', status: 'planned' }), 'Unable to create VLAN') }}>
-      <h4>New VLAN</h4>
-      <label>Site<select value={vlanForm.site_id} onChange={(event) => setVlanForm({ ...vlanForm, site_id: event.target.value })} required><option value="">Select site</option>{sites.map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label>
-      <label>VLAN ID<input type="number" min={1} max={4094} value={vlanForm.vlan_id} onChange={(event) => setVlanForm({ ...vlanForm, vlan_id: event.target.value })} required /></label>
-      <label>Name<input value={vlanForm.name} onChange={(event) => setVlanForm({ ...vlanForm, name: event.target.value })} required /></label>
-      <label>Subnet<input value={vlanForm.subnet} onChange={(event) => setVlanForm({ ...vlanForm, subnet: event.target.value })} /></label>
-      <label>Gateway<input value={vlanForm.gateway} onChange={(event) => setVlanForm({ ...vlanForm, gateway: event.target.value })} /></label>
+    </form>}
+    {networks.length === 0 ? <p className="muted">No IP networks added to this site yet.</p> : <div className="data-table">
+      {networks.map((network) => <div key={network.id} className="table-row"><div><strong>{network.name}</strong><span>{network.network_type} - {network.cidr}</span></div><span className={`status-badge ${network.status}`}>{network.status}</span></div>)}
+    </div>}
+  </div>
+}
+
+function VlanSection({ token, site, vlans, onInventoryChanged }: { token: string; site: Site; vlans: Vlan[]; onInventoryChanged: () => Promise<void> }) {
+  const [showForm, setShowForm] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ vlan_id: '', name: '', subnet: '', gateway: '', status: 'planned' })
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await postInventory(token, 'vlans', { ...form, site_id: site.id, vlan_id: Number(form.vlan_id), subnet: form.subnet || null, gateway: form.gateway || null })
+    if (failure) { setError(failure); setSubmitting(false); return }
+    setForm({ vlan_id: '', name: '', subnet: '', gateway: '', status: 'planned' })
+    setShowForm(false)
+    setSubmitting(false)
+    await onInventoryChanged()
+  }
+
+  return <div className="inventory-section">
+    <SectionHeader title="VLANs" count={vlans.length} showForm={showForm} onToggle={() => setShowForm(!showForm)} />
+    {showForm && <form className="form-grid compact-form" onSubmit={submit}>
+      <label>VLAN ID<input type="number" min={1} max={4094} value={form.vlan_id} onChange={(event) => setForm({ ...form, vlan_id: event.target.value })} required /></label>
+      <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+      <label>Subnet<input value={form.subnet} onChange={(event) => setForm({ ...form, subnet: event.target.value })} /></label>
+      <label>Gateway<input value={form.gateway} onChange={(event) => setForm({ ...form, gateway: event.target.value })} /></label>
+      <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="active">Active</option><option value="retired">Retired</option></select></label>
+      {error && <p className="form-error">{error}</p>}
       <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save VLAN'}</button>
-    </form>
-    <form className="form-grid workflow-form-divider" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void post('interfaces', { ...interfaceForm, site_id: Number(interfaceForm.site_id), device_id: Number(interfaceForm.device_id), ip_address: interfaceForm.ip_address || null, connected_to: interfaceForm.connected_to || null }, () => setInterfaceForm({ site_id: '', device_id: '', name: '', interface_role: 'lan', ip_address: '', connected_to: '', status: 'planned' }), 'Unable to create interface') }}>
-      <h4>New interface</h4>
-      <label>Site<select value={interfaceForm.site_id} onChange={(event) => setInterfaceForm({ ...interfaceForm, site_id: event.target.value, device_id: '' })} required><option value="">Select site</option>{sites.map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label>
-      <label>Device<select value={interfaceForm.device_id} onChange={(event) => setInterfaceForm({ ...interfaceForm, device_id: event.target.value })} required><option value="">Select device</option>{devices.filter((device) => device.site_id === Number(interfaceForm.site_id)).map((device) => <option key={device.id} value={String(device.id)}>{device.hostname}</option>)}</select></label>
-      <label>Interface<input placeholder="ge-0/0/0" value={interfaceForm.name} onChange={(event) => setInterfaceForm({ ...interfaceForm, name: event.target.value })} required /></label>
-      <label>Role<select value={interfaceForm.interface_role} onChange={(event) => setInterfaceForm({ ...interfaceForm, interface_role: event.target.value })}><option value="lan">LAN</option><option value="wan">WAN</option><option value="management">Management</option><option value="loopback">Loopback</option></select></label>
-      <label>IP address<input value={interfaceForm.ip_address} onChange={(event) => setInterfaceForm({ ...interfaceForm, ip_address: event.target.value })} /></label>
-      <label>Connected to<input value={interfaceForm.connected_to} onChange={(event) => setInterfaceForm({ ...interfaceForm, connected_to: event.target.value })} /></label>
-      <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save interface'}</button>
-    </form>
-  </section>
+    </form>}
+    {vlans.length === 0 ? <p className="muted">No VLANs added to this site yet.</p> : <div className="data-table">
+      {vlans.map((vlan) => <div key={vlan.id} className="table-row"><div><strong>VLAN {vlan.vlan_id} - {vlan.name}</strong><span>{vlan.subnet ?? 'No subnet'}</span></div><span className={`status-badge ${vlan.status}`}>{vlan.status}</span></div>)}
+    </div>}
+  </div>
 }
 
 export default InventoryWorkspace

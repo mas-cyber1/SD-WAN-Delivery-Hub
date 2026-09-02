@@ -88,6 +88,19 @@ button { font: inherit; }
 .data-table { display: grid; gap: 10px; margin-top: 20px; }
 .hierarchy-stack { display: grid; gap: 12px; margin-top: 20px; }
 .hierarchy-card { border: 1px solid #dce7e5; border-radius: 10px; background: #fff; padding: 14px; }
+.site-picker-list { display: grid; gap: 6px; }
+.site-picker-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #dce7e5; border-radius: 7px; padding: 9px 11px; background: #fff; color: #17212b; cursor: pointer; font-size: 12px; text-align: left; }
+.site-picker-item:hover { border-color: #17615d; }
+.site-picker-item.selected { border-color: #17615d; background: #e8f2ef; font-weight: 700; }
+.inventory-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid #e4ecea; }
+.inventory-section:first-of-type { margin-top: 18px; padding-top: 0; border-top: 0; }
+.section-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.section-header h4 { margin: 0; font: 600 14px 'Space Grotesk', sans-serif; color: #17212b; }
+.section-header.compact { margin-top: 16px; }
+.device-card { border: 1px solid #dce7e5; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+.device-card .table-row { border: 0; border-radius: 0; }
+.device-detail { padding: 14px; border-top: 1px solid #e4ecea; background: #f8faf9; }
+.device-detail-actions { margin-bottom: 10px; }
 .nested-project { border-top: 1px solid #e4ecea; padding-top: 12px; }
 .inventory-site { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f3f7f6; }
 .hierarchy-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }

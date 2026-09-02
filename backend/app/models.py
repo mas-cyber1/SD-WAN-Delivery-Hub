@@ -93,6 +93,9 @@ class Site(Base):
     project: Mapped[Project] = relationship(back_populates="sites")
     devices: Mapped[list["NetworkDevice"]] = relationship(back_populates="site")
     circuits: Mapped[list["WanCircuit"]] = relationship(back_populates="site")
+    ip_networks: Mapped[list["IpNetwork"]] = relationship(back_populates="site")
+    vlans: Mapped[list["Vlan"]] = relationship(back_populates="site")
+    interfaces: Mapped[list["NetworkInterface"]] = relationship(back_populates="site")
 
 
 class RaidItem(Base):
@@ -196,3 +199,56 @@ class WanCircuit(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     tenant: Mapped[Tenant] = relationship(back_populates="circuits")
     site: Mapped[Site] = relationship(back_populates="circuits")
+
+
+class IpNetwork(Base):
+    __tablename__ = "ip_networks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    cidr: Mapped[str] = mapped_column(String(64))
+    gateway: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    network_type: Mapped[str] = mapped_column(String(40), default="lan")
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship()
+    site: Mapped[Site] = relationship(back_populates="ip_networks")
+
+
+class Vlan(Base):
+    __tablename__ = "vlans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    vlan_id: Mapped[int] = mapped_column()
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    subnet: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    gateway: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship()
+    site: Mapped[Site] = relationship(back_populates="vlans")
+
+
+class NetworkInterface(Base):
+    __tablename__ = "network_interfaces"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("network_devices.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    interface_role: Mapped[str] = mapped_column(String(40), default="lan")
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    connected_to: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tenant: Mapped[Tenant] = relationship()
+    site: Mapped[Site] = relationship(back_populates="interfaces")
+    device: Mapped[NetworkDevice] = relationship()

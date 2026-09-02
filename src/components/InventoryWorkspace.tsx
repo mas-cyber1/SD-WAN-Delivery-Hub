@@ -175,10 +175,40 @@ function DeviceRow({ token, site, device, interfaces, expanded, onExpand, onInve
         <button className="primary-button" disabled={interfaceSubmitting}>{interfaceSubmitting ? 'Saving...' : 'Save interface'}</button>
       </form>}
       {interfaces.length === 0 ? <p className="muted">No interfaces recorded for this device yet.</p> : <div className="data-table">
-        {interfaces.map((item) => <div key={item.id} className="table-row"><div><strong>{item.name}</strong><span>{item.interface_role}{item.ip_address ? ` - ${item.ip_address}` : ''}{item.connected_to ? ` - to ${item.connected_to}` : ''}</span></div><span className={`status-badge ${item.status}`}>{item.status}</span></div>)}
+        {interfaces.map((item) => <InterfaceRow key={item.id} token={token} interfaceItem={item} onInventoryChanged={onInventoryChanged} />)}
       </div>}
     </div>}
   </div>
+}
+
+function InterfaceRow({ token, interfaceItem, onInventoryChanged }: { token: string; interfaceItem: NetworkInterface; onInventoryChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: interfaceItem.name, interface_role: interfaceItem.interface_role, ip_address: interfaceItem.ip_address ?? '', connected_to: interfaceItem.connected_to ?? '', status: interfaceItem.status })
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await patchInventory(token, 'interfaces', interfaceItem.id, { ...form, ip_address: form.ip_address || null, connected_to: form.connected_to || null })
+    setSubmitting(false)
+    if (failure) { setError(failure); return }
+    setEditing(false)
+    await onInventoryChanged()
+  }
+
+  if (editing) return <form className="form-grid compact-form" onSubmit={save}>
+    <label>Interface<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+    <label>Role<select value={form.interface_role} onChange={(event) => setForm({ ...form, interface_role: event.target.value })}><option value="lan">LAN</option><option value="wan">WAN</option><option value="management">Management</option><option value="loopback">Loopback</option></select></label>
+    <label>IP address<input value={form.ip_address} onChange={(event) => setForm({ ...form, ip_address: event.target.value })} /></label>
+    <label>Connected to<input value={form.connected_to} onChange={(event) => setForm({ ...form, connected_to: event.target.value })} /></label>
+    <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="active">Active</option><option value="retired">Retired</option></select></label>
+    {error && <p className="form-error">{error}</p>}
+    <div className="edit-actions"><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save changes'}</button><button type="button" className="filter-button" onClick={() => setEditing(false)}>Cancel</button></div>
+  </form>
+
+  return <div className="table-row"><div><strong>{interfaceItem.name}</strong><span>{interfaceItem.interface_role}{interfaceItem.ip_address ? ` - ${interfaceItem.ip_address}` : ''}{interfaceItem.connected_to ? ` - to ${interfaceItem.connected_to}` : ''}</span></div><div className="project-meta"><span className={`status-badge ${interfaceItem.status}`}>{interfaceItem.status}</span><button type="button" className="filter-button" onClick={() => setEditing(true)}>Edit</button></div></div>
 }
 
 function CircuitSection({ token, site, circuits, onInventoryChanged }: { token: string; site: Site; circuits: Circuit[]; onInventoryChanged: () => Promise<void> }) {
@@ -213,9 +243,41 @@ function CircuitSection({ token, site, circuits, onInventoryChanged }: { token: 
       <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save circuit'}</button>
     </form>}
     {circuits.length === 0 ? <p className="muted">No WAN circuits added to this site yet.</p> : <div className="data-table">
-      {circuits.map((circuit) => <div key={circuit.id} className="table-row"><div><strong>{circuit.name}</strong><span>{circuit.provider} - {circuit.role}{circuit.bandwidth_mbps ? ` - ${circuit.bandwidth_mbps} Mbps` : ''}</span></div><span className={`status-badge ${circuit.status}`}>{circuit.status}</span></div>)}
+      {circuits.map((circuit) => <CircuitRow key={circuit.id} token={token} circuit={circuit} onInventoryChanged={onInventoryChanged} />)}
     </div>}
   </div>
+}
+
+function CircuitRow({ token, circuit, onInventoryChanged }: { token: string; circuit: Circuit; onInventoryChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: circuit.name, provider: circuit.provider, circuit_type: circuit.circuit_type, role: circuit.role, bandwidth_mbps: circuit.bandwidth_mbps == null ? '' : String(circuit.bandwidth_mbps), public_ip: circuit.public_ip ?? '', status: circuit.status })
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await patchInventory(token, 'circuits', circuit.id, { ...form, bandwidth_mbps: form.bandwidth_mbps ? Number(form.bandwidth_mbps) : null, public_ip: form.public_ip || null })
+    setSubmitting(false)
+    if (failure) { setError(failure); return }
+    setEditing(false)
+    await onInventoryChanged()
+  }
+
+  if (editing) return <form className="form-grid compact-form" onSubmit={save}>
+    <label>Circuit name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+    <label>Provider<input value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value })} required /></label>
+    <label>Type<select value={form.circuit_type} onChange={(event) => setForm({ ...form, circuit_type: event.target.value })}><option value="internet">Internet</option><option value="mpls">MPLS</option><option value="private_ethernet">Private Ethernet</option><option value="lte_5g">LTE / 5G</option></select></label>
+    <label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}><option value="primary">Primary</option><option value="backup">Backup</option><option value="tertiary">Tertiary</option></select></label>
+    <label>Bandwidth (Mbps)<input type="number" min={0} value={form.bandwidth_mbps} onChange={(event) => setForm({ ...form, bandwidth_mbps: event.target.value })} /></label>
+    <label>Public IP<input value={form.public_ip} onChange={(event) => setForm({ ...form, public_ip: event.target.value })} /></label>
+    <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="ordered">Ordered</option><option value="provisioning">Provisioning</option><option value="live">Live</option></select></label>
+    {error && <p className="form-error">{error}</p>}
+    <div className="edit-actions"><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save changes'}</button><button type="button" className="filter-button" onClick={() => setEditing(false)}>Cancel</button></div>
+  </form>
+
+  return <div className="table-row"><div><strong>{circuit.name}</strong><span>{circuit.provider} - {circuit.role}{circuit.bandwidth_mbps ? ` - ${circuit.bandwidth_mbps} Mbps` : ''}</span></div><div className="project-meta"><span className={`status-badge ${circuit.status}`}>{circuit.status}</span><button type="button" className="filter-button" onClick={() => setEditing(true)}>Edit</button></div></div>
 }
 
 function NetworkSection({ token, site, networks, onInventoryChanged }: { token: string; site: Site; networks: Network[]; onInventoryChanged: () => Promise<void> }) {
@@ -247,9 +309,39 @@ function NetworkSection({ token, site, networks, onInventoryChanged }: { token: 
       <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save network'}</button>
     </form>}
     {networks.length === 0 ? <p className="muted">No IP networks added to this site yet.</p> : <div className="data-table">
-      {networks.map((network) => <div key={network.id} className="table-row"><div><strong>{network.name}</strong><span>{network.network_type} - {network.cidr}</span></div><span className={`status-badge ${network.status}`}>{network.status}</span></div>)}
+      {networks.map((network) => <NetworkRow key={network.id} token={token} network={network} onInventoryChanged={onInventoryChanged} />)}
     </div>}
   </div>
+}
+
+function NetworkRow({ token, network, onInventoryChanged }: { token: string; network: Network; onInventoryChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: network.name, cidr: network.cidr, gateway: network.gateway ?? '', network_type: network.network_type, status: network.status })
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await patchInventory(token, 'networks', network.id, { ...form, gateway: form.gateway || null })
+    setSubmitting(false)
+    if (failure) { setError(failure); return }
+    setEditing(false)
+    await onInventoryChanged()
+  }
+
+  if (editing) return <form className="form-grid compact-form" onSubmit={save}>
+    <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+    <label>CIDR<input value={form.cidr} onChange={(event) => setForm({ ...form, cidr: event.target.value })} required /></label>
+    <label>Gateway<input value={form.gateway} onChange={(event) => setForm({ ...form, gateway: event.target.value })} /></label>
+    <label>Type<select value={form.network_type} onChange={(event) => setForm({ ...form, network_type: event.target.value })}><option value="lan">LAN</option><option value="wan">WAN</option><option value="management">Management</option><option value="loopback">Loopback</option></select></label>
+    <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="active">Active</option><option value="retired">Retired</option></select></label>
+    {error && <p className="form-error">{error}</p>}
+    <div className="edit-actions"><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save changes'}</button><button type="button" className="filter-button" onClick={() => setEditing(false)}>Cancel</button></div>
+  </form>
+
+  return <div className="table-row"><div><strong>{network.name}</strong><span>{network.network_type} - {network.cidr}</span></div><div className="project-meta"><span className={`status-badge ${network.status}`}>{network.status}</span><button type="button" className="filter-button" onClick={() => setEditing(true)}>Edit</button></div></div>
 }
 
 function VlanSection({ token, site, vlans, onInventoryChanged }: { token: string; site: Site; vlans: Vlan[]; onInventoryChanged: () => Promise<void> }) {
@@ -282,9 +374,39 @@ function VlanSection({ token, site, vlans, onInventoryChanged }: { token: string
       <button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save VLAN'}</button>
     </form>}
     {vlans.length === 0 ? <p className="muted">No VLANs added to this site yet.</p> : <div className="data-table">
-      {vlans.map((vlan) => <div key={vlan.id} className="table-row"><div><strong>VLAN {vlan.vlan_id} - {vlan.name}</strong><span>{vlan.subnet ?? 'No subnet'}</span></div><span className={`status-badge ${vlan.status}`}>{vlan.status}</span></div>)}
+      {vlans.map((vlan) => <VlanRow key={vlan.id} token={token} vlan={vlan} onInventoryChanged={onInventoryChanged} />)}
     </div>}
   </div>
+}
+
+function VlanRow({ token, vlan, onInventoryChanged }: { token: string; vlan: Vlan; onInventoryChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ vlan_id: String(vlan.vlan_id), name: vlan.name, subnet: vlan.subnet ?? '', gateway: vlan.gateway ?? '', status: vlan.status })
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    const failure = await patchInventory(token, 'vlans', vlan.id, { ...form, vlan_id: Number(form.vlan_id), subnet: form.subnet || null, gateway: form.gateway || null })
+    setSubmitting(false)
+    if (failure) { setError(failure); return }
+    setEditing(false)
+    await onInventoryChanged()
+  }
+
+  if (editing) return <form className="form-grid compact-form" onSubmit={save}>
+    <label>VLAN ID<input type="number" min={1} max={4094} value={form.vlan_id} onChange={(event) => setForm({ ...form, vlan_id: event.target.value })} required /></label>
+    <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+    <label>Subnet<input value={form.subnet} onChange={(event) => setForm({ ...form, subnet: event.target.value })} /></label>
+    <label>Gateway<input value={form.gateway} onChange={(event) => setForm({ ...form, gateway: event.target.value })} /></label>
+    <label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="planned">Planned</option><option value="active">Active</option><option value="retired">Retired</option></select></label>
+    {error && <p className="form-error">{error}</p>}
+    <div className="edit-actions"><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save changes'}</button><button type="button" className="filter-button" onClick={() => setEditing(false)}>Cancel</button></div>
+  </form>
+
+  return <div className="table-row"><div><strong>VLAN {vlan.vlan_id} - {vlan.name}</strong><span>{vlan.subnet ?? 'No subnet'}</span></div><div className="project-meta"><span className={`status-badge ${vlan.status}`}>{vlan.status}</span><button type="button" className="filter-button" onClick={() => setEditing(true)}>Edit</button></div></div>
 }
 
 export default InventoryWorkspace

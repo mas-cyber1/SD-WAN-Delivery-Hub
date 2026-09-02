@@ -44,7 +44,6 @@ function InventoryEditor({ editing, devices, circuits, networks, vlans, interfac
   if (!editing) return <section className="panel"><div className="panel-heading"><div><h3>Inventory editor</h3><p className="muted">Select Edit on any inventory record to correct its details.</p></div></div><div className="empty-state compact"><span>No record selected</span></div></section>
   const fields = Object.keys(values)
   return <section className="panel"><div className="panel-heading"><div><h3>Edit {editing.type}</h3><p className="muted">Update the record without changing its site relationship.</p></div></div><form className="form-grid" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const payload: Record<string, unknown> = { ...values }; if (editing.type === 'circuit' && values.bandwidth_mbps) payload.bandwidth_mbps = Number(values.bandwidth_mbps); if (editing.type === 'vlan') payload.vlan_id = Number(values.vlan_id); void onSave(editing.type, editing.id, payload) }}>{fields.map((field) => <label key={field}>{field.replaceAll('_', ' ')}<input value={values[field]} onChange={(event) => setValues({ ...values, [field]: event.target.value })} /></label>)}<div className="edit-actions"><button className="primary-button">Save changes</button><button type="button" className="filter-button" onClick={onCancel}>Cancel</button></div></form></section>
-+}
-+
-+export default InventoryWorkspace
-*** End Patch
+}
+
+export default InventoryWorkspace

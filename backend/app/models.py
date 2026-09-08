@@ -73,6 +73,8 @@ class Project(Base):
     milestones: Mapped[list["Milestone"]] = relationship(back_populates="project")
     actions: Mapped[list["ProjectAction"]] = relationship(back_populates="project")
     decisions: Mapped[list["ProjectDecision"]] = relationship(back_populates="project")
+    overlay_hubs: Mapped[list["SdwanHub"]] = relationship(back_populates="project")
+    overlay_tunnels: Mapped[list["SdwanTunnel"]] = relationship(back_populates="project")
 
 
 class Site(Base):
@@ -252,3 +254,46 @@ class NetworkInterface(Base):
     tenant: Mapped[Tenant] = relationship()
     site: Mapped[Site] = relationship(back_populates="interfaces")
     device: Mapped[NetworkDevice] = relationship()
+
+
+class SdwanHub(Base):
+    __tablename__ = "sdwan_hubs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("network_devices.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    hub_type: Mapped[str] = mapped_column(String(40), default="hub")
+    controller_hostname: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    project: Mapped[Project] = relationship(back_populates="overlay_hubs")
+    site: Mapped[Site] = relationship()
+    device: Mapped[NetworkDevice | None] = relationship()
+
+
+class SdwanTunnel(Base):
+    __tablename__ = "sdwan_tunnels"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    source_site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    destination_site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    source_device_id: Mapped[int | None] = mapped_column(ForeignKey("network_devices.id"), nullable=True)
+    destination_device_id: Mapped[int | None] = mapped_column(ForeignKey("network_devices.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    path_role: Mapped[str] = mapped_column(String(30), default="primary")
+    transport: Mapped[str] = mapped_column(String(40), default="internet")
+    local_tunnel_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    remote_tunnel_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    project: Mapped[Project] = relationship(back_populates="overlay_tunnels")
+    source_site: Mapped[Site] = relationship(foreign_keys=[source_site_id])
+    destination_site: Mapped[Site] = relationship(foreign_keys=[destination_site_id])

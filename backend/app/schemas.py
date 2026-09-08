@@ -402,6 +402,70 @@ class NetworkInterfaceResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class SdwanHubCreate(BaseModel):
+    project_id: int
+    site_id: int
+    device_id: int | None = None
+    name: str = Field(min_length=2, max_length=160)
+    hub_type: str = "hub"
+    controller_hostname: str | None = None
+    region: str | None = None
+    status: str = "planned"
+    description: str | None = None
+
+
+class SdwanHubResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    project_id: int
+    site_id: int
+    device_id: int | None
+    name: str
+    hub_type: str
+    controller_hostname: str | None
+    region: str | None
+    status: str
+    description: str | None
+    created_at: datetime | None = None
+
+
+class SdwanTunnelCreate(BaseModel):
+    project_id: int
+    source_site_id: int
+    destination_site_id: int
+    source_device_id: int | None = None
+    destination_device_id: int | None = None
+    name: str = Field(min_length=2, max_length=160)
+    path_role: str = "primary"
+    transport: str = "internet"
+    local_tunnel_ip: str | None = None
+    remote_tunnel_ip: str | None = None
+    status: str = "planned"
+    description: str | None = None
+
+
+class SdwanTunnelResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    project_id: int
+    source_site_id: int
+    destination_site_id: int
+    source_device_id: int | None
+    destination_device_id: int | None
+    name: str
+    path_role: str
+    transport: str
+    local_tunnel_ip: str | None
+    remote_tunnel_ip: str | None
+    status: str
+    description: str | None
+    created_at: datetime | None = None
+
+
 class NetworkInterfaceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=100)
     interface_role: str | None = None

@@ -12,6 +12,7 @@ from app.routers.milestones import router as milestones_router
 from app.routers.workflow import router as workflow_router
 from app.routers.inventory import router as inventory_router
 from app.routers.overlay import router as overlay_router
+from app.routers.routing import router as routing_router
 
 app = FastAPI(title="SD-WAN Delivery Hub API", version="0.1.0")
 
@@ -32,6 +33,7 @@ app.include_router(milestones_router, prefix="/api/milestones", tags=["milestone
 app.include_router(workflow_router, prefix="/api/workflow", tags=["workflow"])
 app.include_router(inventory_router, prefix="/api/inventory", tags=["inventory"])
 app.include_router(overlay_router, prefix="/api/overlay", tags=["overlay"])
+app.include_router(routing_router, prefix="/api/routing", tags=["routing"])
 
 
 @app.get("/api/health")

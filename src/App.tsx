@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import InventoryWorkspace from './components/InventoryWorkspace'
+import RoutingWorkspace from './components/RoutingWorkspace'
 
 type Module = {
   id: string
@@ -136,6 +137,8 @@ type HubRecord = { id: number; project_id: number; site_id: number; device_id: n
 type TunnelRecord = { id: number; project_id: number; source_site_id: number; destination_site_id: number; source_device_id: number | null; destination_device_id: number | null; name: string; path_role: string; transport: string; local_tunnel_ip: string | null; remote_tunnel_ip: string | null; status: string }
 type TopologyRecord = { id: number; project_id: number; topology_type: string; status: string; notes: string | null }
 type SecureEdgeRecord = { id: number; project_id: number; site_id: number; edge_name: string; edge_type: string; transport: string; status: string; notes: string | null }
+type SiteRoutingRecord = { id: number; site_id: number; protocol: string; local_asn: number | null; remote_asn: number | null; ospf_area: string | null; next_hop: string | null; status: string; notes: string | null }
+type AdvertisedNetworkRecord = { id: number; site_id: number; routing_id: number | null; name: string; cidr: string; status: string; notes: string | null }
 
 const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', description: 'See delivery health at a glance.', icon: Gauge },
@@ -147,6 +150,7 @@ const modules: Module[] = [
   { id: 'workflow', label: 'Actions & Decisions', description: 'Track commitments and decisions.', icon: ClipboardList },
   { id: 'inventory', label: 'Network Inventory', description: 'Manage devices and WAN circuits.', icon: Network },
   { id: 'overlay', label: 'Routing & Overlay', description: 'Manage hubs and SD-WAN paths.', icon: Network },
+  { id: 'routing', label: 'Underlay Routing', description: 'Define BGP, OSPF, or static routing and advertised networks.', icon: Network },
   { id: 'documents', label: 'Documents', description: 'Organise project documents.', icon: FileText },
 ]
 
@@ -193,6 +197,8 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
   const [tunnels, setTunnels] = useState<TunnelRecord[]>([])
   const [topologies, setTopologies] = useState<TopologyRecord[]>([])
   const [secureEdges, setSecureEdges] = useState<SecureEdgeRecord[]>([])
+  const [siteRouting, setSiteRouting] = useState<SiteRoutingRecord[]>([])
+  const [advertisedNetworks, setAdvertisedNetworks] = useState<AdvertisedNetworkRecord[]>([])
   const active = modules.find((module) => module.id === activeModule) ?? modules[0]
   const ActiveIcon = active.icon
 
@@ -265,6 +271,13 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
     setTopologies(topologyRecords)
   }
 
+  const loadRouting = async () => {
+    const headers = { Authorization: `Bearer ${token}` }
+    const [routingResponse, advertisedResponse] = await Promise.all([fetch('/api/routing/site-routing', { headers }), fetch('/api/routing/advertised-networks', { headers })])
+    if (routingResponse.ok) setSiteRouting((await routingResponse.json()) as SiteRoutingRecord[])
+    if (advertisedResponse.ok) setAdvertisedNetworks((await advertisedResponse.json()) as AdvertisedNetworkRecord[])
+  }
+
   useEffect(() => {
     void loadClients()
     void loadProjects()
@@ -274,6 +287,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
     void loadWorkflow()
     void loadInventory()
     void loadOverlay()
+    void loadRouting()
   }, [token])
 
   return (
@@ -310,7 +324,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
         </header>
         <div className="content">
           <section className="welcome-row"><div><p className="eyebrow">SD-WAN project delivery</p><h2>{active.label}</h2><p className="muted">{active.description}</p></div><button className="primary-button"><BarChart3 size={17} /> View pilot overview</button></section>
-          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} milestones={milestones} actions={actions} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : activeModule === 'scheduler' ? <SchedulerWorkspace token={token} clients={clients} projects={projects} milestones={milestones} onMilestonesChanged={loadMilestones} /> : activeModule === 'workflow' ? <WorkflowWorkspace token={token} clients={clients} projects={projects} actions={actions} decisions={decisions} onWorkflowChanged={loadWorkflow} /> : activeModule === 'inventory' ? <InventoryWorkspace token={token} clients={clients} projects={projects} sites={sites} devices={devices} circuits={circuits} networks={networks} vlans={vlans} interfaces={interfaces} onInventoryChanged={loadInventory} /> : activeModule === 'overlay' ? <OverlayWorkspace token={token} clients={clients} projects={projects} sites={sites} topologies={topologies} secureEdges={secureEdges} onOverlayChanged={loadOverlay} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
+          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} milestones={milestones} actions={actions} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : activeModule === 'scheduler' ? <SchedulerWorkspace token={token} clients={clients} projects={projects} milestones={milestones} onMilestonesChanged={loadMilestones} /> : activeModule === 'workflow' ? <WorkflowWorkspace token={token} clients={clients} projects={projects} actions={actions} decisions={decisions} onWorkflowChanged={loadWorkflow} /> : activeModule === 'inventory' ? <InventoryWorkspace token={token} clients={clients} projects={projects} sites={sites} devices={devices} circuits={circuits} networks={networks} vlans={vlans} interfaces={interfaces} onInventoryChanged={loadInventory} /> : activeModule === 'overlay' ? <OverlayWorkspace token={token} clients={clients} projects={projects} sites={sites} topologies={topologies} secureEdges={secureEdges} onOverlayChanged={loadOverlay} /> : activeModule === 'routing' ? <RoutingWorkspace token={token} clients={clients} projects={projects} sites={sites} siteRouting={siteRouting} advertisedNetworks={advertisedNetworks} onRoutingChanged={loadRouting} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
         </div>
       </main>
     </div>

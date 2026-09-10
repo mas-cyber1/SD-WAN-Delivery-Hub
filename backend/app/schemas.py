@@ -526,3 +526,71 @@ class NetworkInterfaceUpdate(BaseModel):
     connected_to: str | None = None
     status: str | None = None
     description: str | None = None
+
+
+class SiteRoutingCreate(BaseModel):
+    site_id: int
+    protocol: str = "static"
+    local_asn: int | None = None
+    remote_asn: int | None = None
+    ospf_area: str | None = None
+    next_hop: str | None = None
+    status: str = "planned"
+    notes: str | None = None
+
+
+class SiteRoutingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    site_id: int
+    protocol: str
+    local_asn: int | None
+    remote_asn: int | None
+    ospf_area: str | None
+    next_hop: str | None
+    status: str
+    notes: str | None
+    created_at: datetime | None = None
+
+
+class SiteRoutingUpdate(BaseModel):
+    protocol: str | None = None
+    local_asn: int | None = None
+    remote_asn: int | None = None
+    ospf_area: str | None = None
+    next_hop: str | None = None
+    status: str | None = None
+    notes: str | None = None
+
+
+class AdvertisedNetworkCreate(BaseModel):
+    site_id: int
+    routing_id: int | None = None
+    name: str = Field(min_length=2, max_length=160)
+    cidr: str = Field(min_length=3, max_length=64)
+    status: str = "advertised"
+    notes: str | None = None
+
+
+class AdvertisedNetworkResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    site_id: int
+    routing_id: int | None
+    name: str
+    cidr: str
+    status: str
+    notes: str | None
+    created_at: datetime | None = None
+
+
+class AdvertisedNetworkUpdate(BaseModel):
+    routing_id: int | None = None
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    cidr: str | None = Field(default=None, min_length=3, max_length=64)
+    status: str | None = None
+    notes: str | None = None

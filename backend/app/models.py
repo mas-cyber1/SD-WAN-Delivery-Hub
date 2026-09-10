@@ -98,6 +98,8 @@ class Site(Base):
     devices: Mapped[list["NetworkDevice"]] = relationship(back_populates="site")
     circuits: Mapped[list["WanCircuit"]] = relationship(back_populates="site")
     ip_networks: Mapped[list["IpNetwork"]] = relationship(back_populates="site")
+    site_routing: Mapped[list["SiteRouting"]] = relationship(back_populates="site")
+    advertised_networks: Mapped[list["AdvertisedNetwork"]] = relationship(back_populates="site")
     vlans: Mapped[list["Vlan"]] = relationship(back_populates="site")
     interfaces: Mapped[list["NetworkInterface"]] = relationship(back_populates="site")
 
@@ -329,3 +331,36 @@ class SecureEdgeConnection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     project: Mapped[Project] = relationship(back_populates="secure_edges")
     site: Mapped[Site] = relationship()
+
+
+class SiteRouting(Base):
+    __tablename__ = "site_routing"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    protocol: Mapped[str] = mapped_column(String(30), default="static")
+    local_asn: Mapped[int | None] = mapped_column(nullable=True)
+    remote_asn: Mapped[int | None] = mapped_column(nullable=True)
+    ospf_area: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    next_hop: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    site: Mapped[Site] = relationship(back_populates="site_routing")
+
+
+class AdvertisedNetwork(Base):
+    __tablename__ = "advertised_networks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    routing_id: Mapped[int | None] = mapped_column(ForeignKey("site_routing.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    cidr: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(30), default="advertised")
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    site: Mapped[Site] = relationship(back_populates="advertised_networks")
+    routing: Mapped[SiteRouting | None] = relationship()

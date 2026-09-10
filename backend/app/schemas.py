@@ -510,6 +510,15 @@ class SecureEdgeConnectionResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class SecureEdgeConnectionUpdate(BaseModel):
+    site_id: int | None = None
+    edge_name: str | None = Field(default=None, min_length=2, max_length=160)
+    edge_type: str | None = None
+    transport: str | None = None
+    status: str | None = None
+    notes: str | None = None
+
+
 class NetworkInterfaceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=100)
     interface_role: str | None = None

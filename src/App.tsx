@@ -310,7 +310,7 @@ function AuthenticatedApp({ token, userName, onLogout }: { token: string; userNa
         </header>
         <div className="content">
           <section className="welcome-row"><div><p className="eyebrow">SD-WAN project delivery</p><h2>{active.label}</h2><p className="muted">{active.description}</p></div><button className="primary-button"><BarChart3 size={17} /> View pilot overview</button></section>
-          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} milestones={milestones} actions={actions} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : activeModule === 'scheduler' ? <SchedulerWorkspace token={token} clients={clients} projects={projects} milestones={milestones} onMilestonesChanged={loadMilestones} /> : activeModule === 'workflow' ? <WorkflowWorkspace token={token} clients={clients} projects={projects} actions={actions} decisions={decisions} onWorkflowChanged={loadWorkflow} /> : activeModule === 'inventory' ? <InventoryWorkspace token={token} clients={clients} projects={projects} sites={sites} devices={devices} circuits={circuits} networks={networks} vlans={vlans} interfaces={interfaces} onInventoryChanged={loadInventory} /> : activeModule === 'overlay' ? <OverlayWorkspace token={token} projects={projects} sites={sites} hubs={hubs} topologies={topologies} secureEdges={secureEdges} onOverlayChanged={loadOverlay} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
+          {activeModule === 'dashboard' ? <Dashboard clients={clients} projects={projects} sites={sites} raidItems={raidItems} milestones={milestones} actions={actions} /> : activeModule === 'clients' ? <ClientWorkspace token={token} clients={clients} onClientsChanged={loadClients} /> : activeModule === 'projects' ? <ProjectWorkspace token={token} clients={clients} projects={projects} onProjectsChanged={loadProjects} /> : activeModule === 'sites' ? <SiteWorkspace token={token} projects={projects} sites={sites} onSitesChanged={loadSites} /> : activeModule === 'raid' ? <RaidWorkspace token={token} clients={clients} projects={projects} raidItems={raidItems} onRaidChanged={loadRaidItems} /> : activeModule === 'scheduler' ? <SchedulerWorkspace token={token} clients={clients} projects={projects} milestones={milestones} onMilestonesChanged={loadMilestones} /> : activeModule === 'workflow' ? <WorkflowWorkspace token={token} clients={clients} projects={projects} actions={actions} decisions={decisions} onWorkflowChanged={loadWorkflow} /> : activeModule === 'inventory' ? <InventoryWorkspace token={token} clients={clients} projects={projects} sites={sites} devices={devices} circuits={circuits} networks={networks} vlans={vlans} interfaces={interfaces} onInventoryChanged={loadInventory} /> : activeModule === 'overlay' ? <OverlayWorkspace token={token} clients={clients} projects={projects} sites={sites} topologies={topologies} secureEdges={secureEdges} onOverlayChanged={loadOverlay} /> : <ModulePlaceholder module={active} ActiveIcon={ActiveIcon} />}
         </div>
       </main>
     </div>
@@ -552,41 +552,138 @@ function WorkflowWorkspace({ token, clients, projects, actions, decisions, onWor
   </section><section className="panel"><div className="panel-heading"><div><h3>Capture workflow item</h3><p className="muted">Add an action or decision to a project.</p></div></div>{error && <p className="form-error">{error}</p>}<form className="form-grid" onSubmit={createAction}><h4>New action</h4><label>Project<select value={actionForm.project_id} onChange={(event) => setActionForm({ ...actionForm, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Title<input value={actionForm.title} onChange={(event) => setActionForm({ ...actionForm, title: event.target.value })} required /></label><label>Status<select value={actionForm.status} onChange={(event) => setActionForm({ ...actionForm, status: event.target.value })}><option value="open">Open</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select></label><label>Owner<input value={actionForm.owner} onChange={(event) => setActionForm({ ...actionForm, owner: event.target.value })} /></label><label>Due date<input type="date" value={actionForm.due_date} onChange={(event) => setActionForm({ ...actionForm, due_date: event.target.value })} /></label><label>Description<textarea value={actionForm.description} onChange={(event) => setActionForm({ ...actionForm, description: event.target.value })} rows={2} /></label><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save action'}</button></form><form className="form-grid workflow-form-divider" onSubmit={createDecision}><h4>New decision</h4><label>Project<select value={decisionForm.project_id} onChange={(event) => setDecisionForm({ ...decisionForm, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Title<input value={decisionForm.title} onChange={(event) => setDecisionForm({ ...decisionForm, title: event.target.value })} required /></label><label>Decided by<input value={decisionForm.decided_by} onChange={(event) => setDecisionForm({ ...decisionForm, decided_by: event.target.value })} /></label><label>Decision date<input type="date" value={decisionForm.decision_date} onChange={(event) => setDecisionForm({ ...decisionForm, decision_date: event.target.value })} /></label><label>Decision<textarea value={decisionForm.decision} onChange={(event) => setDecisionForm({ ...decisionForm, decision: event.target.value })} rows={3} required /></label><button className="primary-button" disabled={submitting}>{submitting ? 'Saving...' : 'Save decision'}</button></form></section></div>
 }
 
-function OverlayWorkspace({ token, projects, sites, topologies, secureEdges, onOverlayChanged }: { token: string; projects: ProjectRecord[]; sites: SiteRecord[]; topologies: TopologyRecord[]; secureEdges: SecureEdgeRecord[]; onOverlayChanged: () => Promise<void> }) {
-  const [projectId, setProjectId] = useState('')
-  const [topologyType, setTopologyType] = useState('site_to_hub')
-  const [topologyStatus, setTopologyStatus] = useState('planned')
-  const [topologyNotes, setTopologyNotes] = useState('')
-  const [edgeForm, setEdgeForm] = useState({ project_id: '', site_id: '', edge_name: '', edge_type: 'zscaler', transport: 'internet', status: 'planned', notes: '' })
+function OverlayWorkspace({ token, clients, projects, sites, topologies, secureEdges, onOverlayChanged }: { token: string; clients: ClientRecord[]; projects: ProjectRecord[]; sites: SiteRecord[]; topologies: TopologyRecord[]; secureEdges: SecureEdgeRecord[]; onOverlayChanged: () => Promise<void> }) {
+  const [topologyForm, setTopologyForm] = useState({ project_id: '', topology_type: 'site_to_hub', status: 'planned', notes: '' })
+  const [editingTopologyProjectId, setEditingTopologyProjectId] = useState<number | null>(null)
+  const [editTopologyForm, setEditTopologyForm] = useState({ topology_type: 'site_to_hub', status: 'planned', notes: '' })
+  const [edgeForm, setEdgeForm] = useState({ client_id: '', project_id: '', site_id: '', edge_name: '', edge_type: 'zscaler', transport: 'internet', status: 'planned', notes: '' })
+  const [editingEdgeId, setEditingEdgeId] = useState<number | null>(null)
+  const [editEdgeForm, setEditEdgeForm] = useState({ site_id: '', edge_name: '', edge_type: 'zscaler', transport: 'internet', status: 'planned', notes: '' })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const selectedProject = projects.find((project) => project.id === Number(projectId))
-  const projectSites = sites.filter((site) => site.project_id === Number(projectId))
-  const projectEdges = secureEdges.filter((edge) => edge.project_id === Number(projectId))
 
-  async function saveTopology(event: FormEvent<HTMLFormElement>) {
+  async function saveNewTopology(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setSaving(true)
-    const response = await fetch('/api/overlay/topology', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ project_id: Number(projectId), topology_type: topologyType, status: topologyStatus, notes: topologyNotes || null }) })
+    const response = await fetch('/api/overlay/topology', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ project_id: Number(topologyForm.project_id), topology_type: topologyForm.topology_type, status: topologyForm.status, notes: topologyForm.notes || null }) })
     if (!response.ok) { setError('Unable to save topology'); setSaving(false); return }
-    setSaving(false); await onOverlayChanged()
+    setTopologyForm({ project_id: '', topology_type: 'site_to_hub', status: 'planned', notes: '' }); setSaving(false); await onOverlayChanged()
   }
 
-  async function saveSecureEdge(event: FormEvent<HTMLFormElement>) {
+  function beginTopologyEdit(topology: TopologyRecord) {
+    setError('')
+    setEditingTopologyProjectId(topology.project_id)
+    setEditTopologyForm({ topology_type: topology.topology_type, status: topology.status, notes: topology.notes ?? '' })
+  }
+
+  async function saveTopologyEdit(projectId: number) {
+    setError('')
+    const response = await fetch('/api/overlay/topology', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ project_id: projectId, topology_type: editTopologyForm.topology_type, status: editTopologyForm.status, notes: editTopologyForm.notes || null }) })
+    if (!response.ok) { setError('Unable to update topology'); return }
+    setEditingTopologyProjectId(null); await onOverlayChanged()
+  }
+
+  async function deleteTopology(projectId: number) {
+    if (!window.confirm('Delete this project topology?')) return
+    setError('')
+    const response = await fetch(`/api/overlay/topology/${projectId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    if (!response.ok && response.status !== 204) { setError('Unable to delete topology'); return }
+    await onOverlayChanged()
+  }
+
+  async function saveNewEdge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setSaving(true)
-    const response = await fetch('/api/overlay/secure-edges', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...edgeForm, project_id: Number(edgeForm.project_id), site_id: Number(edgeForm.site_id), notes: edgeForm.notes || null }) })
+    const response = await fetch('/api/overlay/secure-edges', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ project_id: Number(edgeForm.project_id), site_id: Number(edgeForm.site_id), edge_name: edgeForm.edge_name, edge_type: edgeForm.edge_type, transport: edgeForm.transport, status: edgeForm.status, notes: edgeForm.notes || null }) })
     if (!response.ok) { const payload = (await response.json().catch(() => ({ detail: 'Unable to save secure edge' }))) as { detail?: string }; setError(payload.detail ?? 'Unable to save secure edge'); setSaving(false); return }
-    setEdgeForm({ project_id: '', site_id: '', edge_name: '', edge_type: 'zscaler', transport: 'internet', status: 'planned', notes: '' }); setSaving(false); await onOverlayChanged()
+    setEdgeForm({ client_id: '', project_id: '', site_id: '', edge_name: '', edge_type: 'zscaler', transport: 'internet', status: 'planned', notes: '' }); setSaving(false); await onOverlayChanged()
   }
 
-  function selectProject(value: string) {
-    setProjectId(value)
-    const topology = topologies.find((item) => item.project_id === Number(value))
-    setTopologyType(topology?.topology_type ?? 'site_to_hub')
-    setTopologyStatus(topology?.status ?? 'planned')
-    setTopologyNotes(topology?.notes ?? '')
+  function beginEdgeEdit(edge: SecureEdgeRecord) {
+    setError('')
+    setEditingEdgeId(edge.id)
+    setEditEdgeForm({ site_id: String(edge.site_id), edge_name: edge.edge_name, edge_type: edge.edge_type, transport: edge.transport, status: edge.status, notes: edge.notes ?? '' })
   }
 
-  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Project topology</h3><p className="muted">Record the SD-WAN topology once per project. Tunnels are inferred from this mode.</p></div><span className="panel-label">Simplified</span></div><form className="form-grid" onSubmit={saveTopology}><label>Project<select value={projectId} onChange={(event) => selectProject(event.target.value)} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Topology<select value={topologyType} onChange={(event) => setTopologyType(event.target.value)}><option value="site_to_hub">Site to hub</option><option value="site_to_site">Site to site mesh</option></select></label><label>Status<select value={topologyStatus} onChange={(event) => setTopologyStatus(event.target.value)}><option value="planned">Planned</option><option value="design">Design</option><option value="active">Active</option><option value="retired">Retired</option></select></label><label>Notes<textarea value={topologyNotes} onChange={(event) => setTopologyNotes(event.target.value)} rows={3} /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={saving}>{saving ? 'Saving...' : 'Save topology'}</button></form>{selectedProject && <div className="overlay-summary"><strong>{selectedProject.name}</strong><span>{projectSites.length} sites · {topologyType === 'site_to_site' ? 'Every site can form an overlay with the other project sites' : 'Sites use the project hub topology'}</span></div>}</section><section className="panel"><div className="panel-heading"><div><h3>Secure-edge connections</h3><p className="muted">Only record exceptions such as Zscaler or Netskope connections.</p></div><span className="panel-label">{projectEdges.length} connections</span></div>{projectEdges.length === 0 ? <div className="empty-state compact"><Network size={29} /><span>No secure-edge connections for this project</span></div> : <div className="data-table">{projectEdges.map((edge) => <div key={edge.id} className="table-row"><div><strong>{edge.edge_name}</strong><span>{sites.find((site) => site.id === edge.site_id)?.name ?? 'Unknown site'} · {edge.edge_type} · {edge.transport}</span></div><span className={`status-badge ${edge.status}`}>{edge.status}</span></div>)}</div>}<form className="form-grid workflow-form-divider" onSubmit={saveSecureEdge}><h4>Add secure-edge connection</h4><label>Project<select value={edgeForm.project_id} onChange={(event) => setEdgeForm({ ...edgeForm, project_id: event.target.value, site_id: '' })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label><label>Site<select value={edgeForm.site_id} onChange={(event) => setEdgeForm({ ...edgeForm, site_id: event.target.value })} required><option value="">Select site</option>{sites.filter((site) => site.project_id === Number(edgeForm.project_id)).map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label><label>Edge name<input placeholder="Zscaler Internet Access" value={edgeForm.edge_name} onChange={(event) => setEdgeForm({ ...edgeForm, edge_name: event.target.value })} required /></label><label>Edge type<select value={edgeForm.edge_type} onChange={(event) => setEdgeForm({ ...edgeForm, edge_type: event.target.value })}><option value="zscaler">Zscaler</option><option value="netskope">Netskope</option><option value="other">Other secure edge</option></select></label><label>Transport<select value={edgeForm.transport} onChange={(event) => setEdgeForm({ ...edgeForm, transport: event.target.value })}><option value="internet">Internet</option><option value="mpls">MPLS</option><option value="private">Private transport</option><option value="lte_5g">LTE / 5G</option></select></label><label>Status<select value={edgeForm.status} onChange={(event) => setEdgeForm({ ...edgeForm, status: event.target.value })}><option value="planned">Planned</option><option value="provisioning">Provisioning</option><option value="active">Active</option><option value="down">Down</option></select></label><label>Notes<textarea value={edgeForm.notes} onChange={(event) => setEdgeForm({ ...edgeForm, notes: event.target.value })} rows={2} /></label><button className="primary-button" disabled={saving}>{saving ? 'Saving...' : 'Save secure edge'}</button></form></section></div>
+  async function saveEdgeEdit(edgeId: number) {
+    setError('')
+    const response = await fetch(`/api/overlay/secure-edges/${edgeId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...editEdgeForm, site_id: Number(editEdgeForm.site_id), notes: editEdgeForm.notes || null }) })
+    if (!response.ok) { setError('Unable to update secure edge'); return }
+    setEditingEdgeId(null); await onOverlayChanged()
+  }
+
+  async function deleteEdge(edgeId: number) {
+    if (!window.confirm('Delete this secure-edge connection?')) return
+    setError('')
+    const response = await fetch(`/api/overlay/secure-edges/${edgeId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    if (!response.ok && response.status !== 204) { setError('Unable to delete secure edge'); return }
+    await onOverlayChanged()
+  }
+
+  const topologyOptions = ['planned', 'design', 'active', 'retired']
+  const edgeStatusOptions = ['planned', 'provisioning', 'active', 'down']
+  const edgeTypeOptions = ['zscaler', 'netskope', 'other']
+  const transportOptions = ['internet', 'mpls', 'private', 'lte_5g']
+
+  const groups = clients.map((client) => ({
+    client,
+    projects: projects.filter((project) => project.client_id === client.id).map((project) => ({
+      project,
+      topology: topologies.find((topology) => topology.project_id === project.id) ?? null,
+      edges: secureEdges.filter((edge) => edge.project_id === project.id),
+    })),
+  })).filter(({ projects: clientProjects }) => clientProjects.length > 0)
+
+  const edgeFormProjects = projects.filter((project) => project.client_id === Number(edgeForm.client_id))
+  const edgeFormSites = sites.filter((site) => site.project_id === Number(edgeForm.project_id))
+
+  return <div className="workspace-grid">
+    <section className="panel workflow-register">
+      <div className="panel-heading"><div><h3>Topology and secure edges by client</h3><p className="muted">Client to Project to Site. Edit or delete anything entered incorrectly.</p></div><span className="panel-label">{topologies.length} topologies · {secureEdges.length} edges</span></div>
+      {error && <p className="form-error">{error}</p>}
+      {groups.length === 0 ? <div className="empty-state compact"><Network size={29} /><span>No topology or secure-edge records yet</span></div> : <div className="hierarchy-stack">
+        {groups.map(({ client, projects: clientProjects }) => <div key={client.id} className="hierarchy-card">
+          <div className="hierarchy-header"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">Client</span></div>
+          {clientProjects.map(({ project, topology, edges }) => <div key={project.id} className="nested-project">
+            <div className="hierarchy-header"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className="muted-tag">Project</span></div>
+            {editingTopologyProjectId === project.id ? <div className="raid-edit-row"><div className="form-grid compact-form">
+              <label>Topology<select value={editTopologyForm.topology_type} onChange={(event) => setEditTopologyForm({ ...editTopologyForm, topology_type: event.target.value })}><option value="site_to_hub">Site to hub</option><option value="site_to_site">Site to site mesh</option></select></label>
+              <label>Status<select value={editTopologyForm.status} onChange={(event) => setEditTopologyForm({ ...editTopologyForm, status: event.target.value })}>{topologyOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label>Notes<textarea value={editTopologyForm.notes} onChange={(event) => setEditTopologyForm({ ...editTopologyForm, notes: event.target.value })} rows={2} /></label>
+            </div><div className="edit-actions"><button className="primary-button" onClick={() => void saveTopologyEdit(project.id)}>Save changes</button><button className="filter-button" onClick={() => setEditingTopologyProjectId(null)}>Cancel</button></div></div> : topology ? <div className="table-row"><div><strong>{topology.topology_type === 'site_to_site' ? 'Site to site mesh' : 'Site to hub'}</strong><span>{sites.filter((site) => site.project_id === project.id).length} sites in this project</span></div><div className="project-meta"><span className={`status-badge ${topology.status}`}>{topology.status}</span><button className="filter-button" onClick={() => beginTopologyEdit(topology)}>Edit</button><button className="filter-button" onClick={() => void deleteTopology(project.id)}>Delete</button></div></div> : <p className="muted">No topology set for this project yet.</p>}
+            {edges.length > 0 && <div className="nested-list" style={{ marginTop: 10 }}>{edges.map((edge) => editingEdgeId === edge.id ? <div key={edge.id} className="raid-edit-row"><div className="form-grid compact-form">
+              <label>Site<select value={editEdgeForm.site_id} onChange={(event) => setEditEdgeForm({ ...editEdgeForm, site_id: event.target.value })}>{sites.filter((site) => site.project_id === project.id).map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label>
+              <label>Edge name<input value={editEdgeForm.edge_name} onChange={(event) => setEditEdgeForm({ ...editEdgeForm, edge_name: event.target.value })} /></label>
+              <label>Edge type<select value={editEdgeForm.edge_type} onChange={(event) => setEditEdgeForm({ ...editEdgeForm, edge_type: event.target.value })}>{edgeTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label>Transport<select value={editEdgeForm.transport} onChange={(event) => setEditEdgeForm({ ...editEdgeForm, transport: event.target.value })}>{transportOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label>Status<select value={editEdgeForm.status} onChange={(event) => setEditEdgeForm({ ...editEdgeForm, status: event.target.value })}>{edgeStatusOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label>Notes<textarea value={editEdgeForm.notes} onChange={(event) => setEditEdgeForm({ ...editEdgeForm, notes: event.target.value })} rows={2} /></label>
+            </div><div className="edit-actions"><button className="primary-button" onClick={() => void saveEdgeEdit(edge.id)}>Save changes</button><button className="filter-button" onClick={() => setEditingEdgeId(null)}>Cancel</button></div></div> : <div key={edge.id} className="nested-item"><div><strong>{edge.edge_name}</strong><span>{sites.find((site) => site.id === edge.site_id)?.name ?? 'Unknown site'} - {edge.edge_type} - {edge.transport}</span></div><div className="project-meta"><span className={`status-badge ${edge.status}`}>{edge.status}</span><button className="filter-button" onClick={() => beginEdgeEdit(edge)}>Edit</button><button className="filter-button" onClick={() => void deleteEdge(edge.id)}>Delete</button></div></div>)}</div>}
+          </div>)}
+        </div>)}
+      </div>}
+    </section>
+    <section className="panel">
+      <div className="panel-heading"><div><h3>Add topology</h3><p className="muted">Record the SD-WAN topology once per project.</p></div></div>
+      <form className="form-grid" onSubmit={saveNewTopology}>
+        <label>Project<select value={topologyForm.project_id} onChange={(event) => setTopologyForm({ ...topologyForm, project_id: event.target.value })} required><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label>
+        <label>Topology<select value={topologyForm.topology_type} onChange={(event) => setTopologyForm({ ...topologyForm, topology_type: event.target.value })}><option value="site_to_hub">Site to hub</option><option value="site_to_site">Site to site mesh</option></select></label>
+        <label>Status<select value={topologyForm.status} onChange={(event) => setTopologyForm({ ...topologyForm, status: event.target.value })}>{topologyOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+        <label>Notes<textarea value={topologyForm.notes} onChange={(event) => setTopologyForm({ ...topologyForm, notes: event.target.value })} rows={2} /></label>
+        <button className="primary-button" disabled={saving}>{saving ? 'Saving...' : 'Save topology'}</button>
+      </form>
+      <div className="panel-heading workflow-form-divider"><div><h3>Add secure-edge connection</h3><p className="muted">Only record exceptions such as Zscaler or Netskope.</p></div></div>
+      <form className="form-grid" onSubmit={saveNewEdge}>
+        <label>Client<select value={edgeForm.client_id} onChange={(event) => setEdgeForm({ ...edgeForm, client_id: event.target.value, project_id: '', site_id: '' })} required><option value="">Select client</option>{clients.map((client) => <option key={client.id} value={String(client.id)}>{client.name}</option>)}</select></label>
+        <label>Project<select value={edgeForm.project_id} onChange={(event) => setEdgeForm({ ...edgeForm, project_id: event.target.value, site_id: '' })} required><option value="">Select project</option>{edgeFormProjects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}</select></label>
+        <label>Site<select value={edgeForm.site_id} onChange={(event) => setEdgeForm({ ...edgeForm, site_id: event.target.value })} required><option value="">Select site</option>{edgeFormSites.map((site) => <option key={site.id} value={String(site.id)}>{site.name}</option>)}</select></label>
+        <label>Edge name<input placeholder="Zscaler Internet Access" value={edgeForm.edge_name} onChange={(event) => setEdgeForm({ ...edgeForm, edge_name: event.target.value })} required /></label>
+        <label>Edge type<select value={edgeForm.edge_type} onChange={(event) => setEdgeForm({ ...edgeForm, edge_type: event.target.value })}>{edgeTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+        <label>Transport<select value={edgeForm.transport} onChange={(event) => setEdgeForm({ ...edgeForm, transport: event.target.value })}>{transportOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+        <label>Status<select value={edgeForm.status} onChange={(event) => setEdgeForm({ ...edgeForm, status: event.target.value })}>{edgeStatusOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+        <label>Notes<textarea value={edgeForm.notes} onChange={(event) => setEdgeForm({ ...edgeForm, notes: event.target.value })} rows={2} /></label>
+        <button className="primary-button" disabled={saving}>{saving ? 'Saving...' : 'Save secure edge'}</button>
+      </form>
+    </section>
+  </div>
 }
 
 function ClientWorkspace({ token, clients, onClientsChanged }: { token: string; clients: ClientRecord[]; onClientsChanged: () => Promise<void> }) {

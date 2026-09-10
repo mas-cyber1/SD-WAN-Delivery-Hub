@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import NetworkDevice, Project, SecureEdgeConnection, SdwanHub, SdwanTopology, SdwanTunnel, Site, User
-from app.schemas import SecureEdgeConnectionCreate, SecureEdgeConnectionResponse, SdwanHubCreate, SdwanHubResponse, SdwanTopologyCreate, SdwanTopologyResponse, SdwanTunnelCreate, SdwanTunnelResponse
+from app.schemas import SecureEdgeConnectionCreate, SecureEdgeConnectionResponse, SecureEdgeConnectionUpdate, SdwanHubCreate, SdwanHubResponse, SdwanTopologyCreate, SdwanTopologyResponse, SdwanTunnelCreate, SdwanTunnelResponse
 
 router = APIRouter()
 
@@ -94,6 +94,16 @@ def save_topology(payload: SdwanTopologyCreate, db: Session = Depends(get_db), u
     return topology
 
 
+@router.delete("/topology/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_topology(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> None:
+    get_project(project_id, user, db)
+    topology = db.scalar(select(SdwanTopology).where(SdwanTopology.project_id == project_id, SdwanTopology.tenant_id == user.tenant_id))
+    if topology is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topology not found")
+    db.delete(topology)
+    db.commit()
+
+
 @router.get("/secure-edges", response_model=list[SecureEdgeConnectionResponse])
 def list_secure_edges(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> Sequence[SecureEdgeConnection]:
     return db.scalars(select(SecureEdgeConnection).where(SecureEdgeConnection.tenant_id == user.tenant_id)).all()
@@ -108,3 +118,26 @@ def create_secure_edge(payload: SecureEdgeConnectionCreate, db: Session = Depend
     db.commit()
     db.refresh(edge)
     return edge
+
+
+@router.patch("/secure-edges/{edge_id}", response_model=SecureEdgeConnectionResponse)
+def update_secure_edge(edge_id: int, payload: SecureEdgeConnectionUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> SecureEdgeConnection:
+    edge = db.scalar(select(SecureEdgeConnection).where(SecureEdgeConnection.id == edge_id, SecureEdgeConnection.tenant_id == user.tenant_id))
+    if edge is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure-edge connection not found")
+    if payload.site_id is not None:
+        get_site_for_project(payload.site_id, edge.project_id, user, db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(edge, field, value)
+    db.commit()
+    db.refresh(edge)
+    return edge
+
+
+@router.delete("/secure-edges/{edge_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_secure_edge(edge_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> None:
+    edge = db.scalar(select(SecureEdgeConnection).where(SecureEdgeConnection.id == edge_id, SecureEdgeConnection.tenant_id == user.tenant_id))
+    if edge is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure-edge connection not found")
+    db.delete(edge)
+    db.commit()

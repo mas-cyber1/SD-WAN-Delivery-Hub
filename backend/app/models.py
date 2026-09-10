@@ -75,6 +75,8 @@ class Project(Base):
     decisions: Mapped[list["ProjectDecision"]] = relationship(back_populates="project")
     overlay_hubs: Mapped[list["SdwanHub"]] = relationship(back_populates="project")
     overlay_tunnels: Mapped[list["SdwanTunnel"]] = relationship(back_populates="project")
+    topology: Mapped["SdwanTopology | None"] = relationship(back_populates="project", uselist=False)
+    secure_edges: Mapped[list["SecureEdgeConnection"]] = relationship(back_populates="project")
 
 
 class Site(Base):
@@ -297,3 +299,33 @@ class SdwanTunnel(Base):
     project: Mapped[Project] = relationship(back_populates="overlay_tunnels")
     source_site: Mapped[Site] = relationship(foreign_keys=[source_site_id])
     destination_site: Mapped[Site] = relationship(foreign_keys=[destination_site_id])
+
+
+class SdwanTopology(Base):
+    __tablename__ = "sdwan_topologies"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), unique=True, index=True)
+    topology_type: Mapped[str] = mapped_column(String(30), default="site_to_hub")
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    project: Mapped[Project] = relationship(back_populates="topology")
+
+
+class SecureEdgeConnection(Base):
+    __tablename__ = "secure_edge_connections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"), index=True)
+    edge_name: Mapped[str] = mapped_column(String(160), index=True)
+    edge_type: Mapped[str] = mapped_column(String(40), default="zscaler")
+    transport: Mapped[str] = mapped_column(String(40), default="internet")
+    status: Mapped[str] = mapped_column(String(30), default="planned")
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    project: Mapped[Project] = relationship(back_populates="secure_edges")
+    site: Mapped[Site] = relationship()

@@ -466,6 +466,50 @@ class SdwanTunnelResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class SdwanTopologyCreate(BaseModel):
+    project_id: int
+    topology_type: str = "site_to_hub"
+    status: str = "planned"
+    notes: str | None = None
+
+
+class SdwanTopologyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    project_id: int
+    topology_type: str
+    status: str
+    notes: str | None
+    created_at: datetime | None = None
+
+
+class SecureEdgeConnectionCreate(BaseModel):
+    project_id: int
+    site_id: int
+    edge_name: str = Field(min_length=2, max_length=160)
+    edge_type: str = "zscaler"
+    transport: str = "internet"
+    status: str = "planned"
+    notes: str | None = None
+
+
+class SecureEdgeConnectionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    project_id: int
+    site_id: int
+    edge_name: str
+    edge_type: str
+    transport: str
+    status: str
+    notes: str | None
+    created_at: datetime | None = None
+
+
 class NetworkInterfaceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=100)
     interface_role: str | None = None

@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import NetworkDevice, Project, SdwanHub, SdwanTunnel, Site, User
-from app.schemas import SdwanHubCreate, SdwanHubResponse, SdwanTunnelCreate, SdwanTunnelResponse
+from app.models import NetworkDevice, Project, SecureEdgeConnection, SdwanHub, SdwanTopology, SdwanTunnel, Site, User
+from app.schemas import SecureEdgeConnectionCreate, SecureEdgeConnectionResponse, SdwanHubCreate, SdwanHubResponse, SdwanTopologyCreate, SdwanTopologyResponse, SdwanTunnelCreate, SdwanTunnelResponse
 
 router = APIRouter()
 
@@ -71,3 +71,40 @@ def create_tunnel(payload: SdwanTunnelCreate, db: Session = Depends(get_db), use
     db.commit()
     db.refresh(tunnel)
     return tunnel
+
+
+@router.get("/topology/{project_id}", response_model=SdwanTopologyResponse | None)
+def get_topology(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> SdwanTopology | None:
+    get_project(project_id, user, db)
+    return db.scalar(select(SdwanTopology).where(SdwanTopology.project_id == project_id, SdwanTopology.tenant_id == user.tenant_id))
+
+
+@router.post("/topology", response_model=SdwanTopologyResponse, status_code=status.HTTP_201_CREATED)
+def save_topology(payload: SdwanTopologyCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> SdwanTopology:
+    get_project(payload.project_id, user, db)
+    topology = db.scalar(select(SdwanTopology).where(SdwanTopology.project_id == payload.project_id, SdwanTopology.tenant_id == user.tenant_id))
+    if topology is None:
+        topology = SdwanTopology(tenant_id=user.tenant_id, **payload.model_dump())
+        db.add(topology)
+    else:
+        for field, value in payload.model_dump(exclude={"project_id"}).items():
+            setattr(topology, field, value)
+    db.commit()
+    db.refresh(topology)
+    return topology
+
+
+@router.get("/secure-edges", response_model=list[SecureEdgeConnectionResponse])
+def list_secure_edges(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> Sequence[SecureEdgeConnection]:
+    return db.scalars(select(SecureEdgeConnection).where(SecureEdgeConnection.tenant_id == user.tenant_id)).all()
+
+
+@router.post("/secure-edges", response_model=SecureEdgeConnectionResponse, status_code=status.HTTP_201_CREATED)
+def create_secure_edge(payload: SecureEdgeConnectionCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> SecureEdgeConnection:
+    get_project(payload.project_id, user, db)
+    get_site_for_project(payload.site_id, payload.project_id, user, db)
+    edge = SecureEdgeConnection(tenant_id=user.tenant_id, **payload.model_dump())
+    db.add(edge)
+    db.commit()
+    db.refresh(edge)
+    return edge

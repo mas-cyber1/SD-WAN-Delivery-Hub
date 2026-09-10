@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Project, User
-from app.schemas import ProjectCreate, ProjectResponse
+from app.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
 
 router = APIRouter()
 
@@ -41,6 +41,23 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db), user: 
         target_completion_date=payload.target_completion_date,
     )
     db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.patch("/{project_id}", response_model=ProjectResponse)
+def update_project(
+    project_id: int,
+    payload: ProjectUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Project:
+    project = db.scalar(select(Project).where(Project.id == project_id, Project.tenant_id == user.tenant_id))
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(project, field, value)
     db.commit()
     db.refresh(project)
     return project

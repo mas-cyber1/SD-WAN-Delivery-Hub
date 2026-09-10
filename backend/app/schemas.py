@@ -72,6 +72,18 @@ class ProjectResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=200)
+    project_code: str | None = Field(default=None, min_length=2, max_length=60)
+    status: str | None = None
+    health: str | None = None
+    completion_percentage: int | None = Field(default=None, ge=0, le=100)
+    description: str | None = None
+    start_date: datetime | None = None
+    target_completion_date: datetime | None = None
+
+
+
 class SiteCreate(BaseModel):
     project_id: int
     name: str = Field(min_length=2, max_length=200)

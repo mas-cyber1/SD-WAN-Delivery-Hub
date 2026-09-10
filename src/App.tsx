@@ -605,6 +605,8 @@ function ClientWorkspace({ token, clients, onClientsChanged }: { token: string; 
 
 function ProjectWorkspace({ token, clients, projects, onProjectsChanged }: { token: string; clients: ClientRecord[]; projects: ProjectRecord[]; onProjectsChanged: () => Promise<void> }) {
   const [form, setForm] = useState({ client_id: '', name: '', project_code: '', status: 'planning', health: 'green', completion_percentage: 0, description: '', start_date: '', target_completion_date: '' })
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', project_code: '', status: 'planning', health: 'green', completion_percentage: 0, description: '', start_date: '', target_completion_date: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -638,8 +640,55 @@ function ProjectWorkspace({ token, clients, projects, onProjectsChanged }: { tok
     }
   }
 
-  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Projects by client</h3><p className="muted">Delivery portfolio grouped under the correct client.</p></div><span className="panel-label">{projects.length} total</span></div>
-    {clients.length === 0 ? <div className="empty-state compact"><Users size={29} /><span>No clients available</span></div> : <div className="hierarchy-stack">{clients.map((client) => { const clientProjects = projects.filter((project) => project.client_id === client.id); return <div key={client.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">{clientProjects.length} projects</span></div>{clientProjects.length === 0 ? <p className="muted">No projects linked to this client yet.</p> : <div className="nested-list">{clientProjects.map((project) => <div key={project.id} className="nested-item"><div><strong>{project.name}</strong><span>{project.project_code}</span></div><span className={`status-badge ${project.status}`}>{project.status}</span></div>)}</div>}</div>})}</div>}
+  function beginProjectEdit(project: ProjectRecord) {
+    setError('')
+    setEditingId(project.id)
+    setEditForm({
+      name: project.name,
+      project_code: project.project_code,
+      status: project.status,
+      health: project.health,
+      completion_percentage: project.completion_percentage,
+      description: project.description ?? '',
+      start_date: project.start_date ? project.start_date.slice(0, 10) : '',
+      target_completion_date: project.target_completion_date ? project.target_completion_date.slice(0, 10) : '',
+    })
+  }
+
+  async function saveProject(projectId: number) {
+    setError('')
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ...editForm,
+          completion_percentage: Number(editForm.completion_percentage),
+          description: editForm.description || null,
+          start_date: editForm.start_date ? new Date(editForm.start_date).toISOString() : null,
+          target_completion_date: editForm.target_completion_date ? new Date(editForm.target_completion_date).toISOString() : null,
+        }),
+      })
+      if (!response.ok) throw new Error('Unable to update project')
+      setEditingId(null)
+      await onProjectsChanged()
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Unable to update project')
+    }
+  }
+
+  return <div className="workspace-grid"><section className="panel"><div className="panel-heading"><div><h3>Projects by client</h3><p className="muted">Every project is grouped under its client and can be edited in place.</p></div><span className="panel-label">{projects.length} total</span></div>
+    {clients.length === 0 ? <div className="empty-state compact"><Users size={29} /><span>No clients available</span></div> : <div className="hierarchy-stack">{clients.map((client) => { const clientProjects = projects.filter((project) => project.client_id === client.id); return <div key={client.id} className="hierarchy-card"><div className="hierarchy-header"><div><strong>{client.name}</strong><span>{client.client_code}</span></div><span className="muted-tag">{clientProjects.length} projects</span></div>{clientProjects.length === 0 ? <p className="muted">No projects linked to this client yet.</p> : <div className="nested-list">{clientProjects.map((project) => editingId === project.id ? <div key={project.id} className="raid-edit-row"><div className="form-grid compact-form">
+      <label>Project name<input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required /></label>
+      <label>Project code<input value={editForm.project_code} onChange={(event) => setEditForm({ ...editForm, project_code: event.target.value })} required /></label>
+      <label>Status<select value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}><option value="planning">Planning</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="completed">Completed</option></select></label>
+      <label>Health<select value={editForm.health} onChange={(event) => setEditForm({ ...editForm, health: event.target.value })}><option value="green">Green</option><option value="amber">Amber</option><option value="red">Red</option></select></label>
+      <label>Completion %<input type="number" min={0} max={100} value={editForm.completion_percentage} onChange={(event) => setEditForm({ ...editForm, completion_percentage: Number(event.target.value) })} /></label>
+      <label>Start date<input type="date" value={editForm.start_date} onChange={(event) => setEditForm({ ...editForm, start_date: event.target.value })} /></label>
+      <label>Target completion<input type="date" value={editForm.target_completion_date} onChange={(event) => setEditForm({ ...editForm, target_completion_date: event.target.value })} /></label>
+      <label>Description<textarea value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} rows={2} /></label>
+      {error && <p className="form-error">{error}</p>}
+    </div><div className="edit-actions"><button className="primary-button" onClick={() => void saveProject(project.id)}>Save changes</button><button className="filter-button" onClick={() => setEditingId(null)}>Cancel</button></div></div> : <div key={project.id} className="nested-item"><div><strong>{project.name}</strong><span>{project.project_code} - {project.completion_percentage}% complete</span></div><div className="project-meta"><span className={`status-badge ${project.health}`}>{project.health}</span><span className={`status-badge ${project.status}`}>{project.status}</span><button className="filter-button" onClick={() => beginProjectEdit(project)}>Edit</button></div></div>)}</div>}</div>})}</div>}
   </section>
     <section className="panel"><div className="panel-heading"><div><h3>Add project</h3><p className="muted">Track a new SD-WAN delivery engagement</p></div><span className="panel-label"><Plus size={14} /></span></div>
       <form className="form-grid" onSubmit={submit}><label>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} required>
@@ -649,6 +698,7 @@ function ProjectWorkspace({ token, clients, projects, onProjectsChanged }: { tok
     </section>
   </div>
 }
+
 
 function Metric({ label, value, detail, accent = false }: { label: string; value: string; detail: string; accent?: boolean }) {
   return <div className="metric"><span className="metric-label">{label}</span><strong className={accent ? 'accent-text' : ''}>{value}</strong><span className="muted">{detail}</span></div>
